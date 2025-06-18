@@ -1,3 +1,3 @@
-# logarhytm
+# logarhythm
 
 Personal Data Dashboard Project
