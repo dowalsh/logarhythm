@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  createdAt    DateTime      @default(now())
+  dailyEntries DailyEntry[]
+  habits       Habit[]
+  modifiers    Modifier[]
+  weeklyScores WeeklyScore[]
+}
+
+model Habit {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String
+  description     String?
+  unit            String?
+  weight          Int
+  targetFrequency Int
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model DailyEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime
+  data      Json
+  notes     String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date])
+}
+
+model Modifier {
+  id        String   @id @default(cuid())
+  userId    String
+  weekStart DateTime
+  label     String
+  value     Float
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model WeeklyScore {
+  id          String   @id @default(cuid())
+  userId      String
+  weekStart   DateTime
+  habitScore  Float
+  modifierSum Float
+  finalScore  Float
+  breakdown   Json
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, weekStart])
+}
