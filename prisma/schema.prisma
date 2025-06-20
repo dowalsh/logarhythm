@@ -7,10 +7,24 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// =========================
+// ENUMS
+
+enum HabitScoringType {
+  LINEAR_POSITIVE_CAPPED   // More is better, capped at targetFrequency
+  LINEAR_NEGATIVE_CAPPED   // Less is better, capped at targetFrequency
+  THRESHOLD_TARGET         // Full credit only if target met
+  ONE_OFF_BONUS            // Single event bonus (could use later)
+}
+
+// =========================
+// MODELS
+
 model User {
-  id           String        @id @default(cuid())
-  email        String        @unique
-  createdAt    DateTime      @default(now())
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+
   dailyEntries DailyEntry[]
   habits       Habit[]
   modifiers    Modifier[]
@@ -18,25 +32,26 @@ model User {
 }
 
 model Habit {
-  id              String   @id @default(cuid())
+  id              String           @id @default(cuid())
   userId          String
+  user            User             @relation(fields: [userId], references: [id])
   name            String
   description     String?
-  unit            String?
-  weight          Int
-  targetFrequency Int
-  createdAt       DateTime @default(now())
-  user            User     @relation(fields: [userId], references: [id])
+  unit            String?  
+  weight          Int              // 1-10 weighting for total score
+  targetFrequency Int              // e.g. 6 times per week
+  scoringType     HabitScoringType @default(LINEAR_POSITIVE_CAPPED)
+  createdAt       DateTime         @default(now())
 }
 
 model DailyEntry {
   id        String   @id @default(cuid())
   userId    String
+  user      User     @relation(fields: [userId], references: [id])
   date      DateTime
-  data      Json
+  data      Json     // flexible habit inputs per day
   notes     String?
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, date])
 }
@@ -44,23 +59,23 @@ model DailyEntry {
 model Modifier {
   id        String   @id @default(cuid())
   userId    String
+  user      User     @relation(fields: [userId], references: [id])
   weekStart DateTime
   label     String
   value     Float
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
 }
 
 model WeeklyScore {
   id          String   @id @default(cuid())
   userId      String
+  user        User     @relation(fields: [userId], references: [id])
   weekStart   DateTime
   habitScore  Float
   modifierSum Float
   finalScore  Float
   breakdown   Json
   createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, weekStart])
 }
