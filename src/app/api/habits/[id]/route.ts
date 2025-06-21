@@ -44,7 +44,6 @@ export async function PUT(
 
     const body = await req.json();
 
-    // Find the habit first to verify ownership
     const habit = await prisma.habit.findUnique({
       where: { id: params.id },
     });
@@ -53,7 +52,6 @@ export async function PUT(
       return NextResponse.json({ error: "Not Found" }, { status: 404 });
     }
 
-    // Update habit
     const updatedHabit = await prisma.habit.update({
       where: { id: params.id },
       data: {
