@@ -14,17 +14,27 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface HabitFormProps {}
+interface HabitFormProps {
+  initialData?: {
+    id: string;
+    name: string;
+    description?: string;
+    unit?: string;
+    weight: number;
+    targetFrequency: number;
+    scoringType: string;
+  };
+}
 
-export default function HabitForm({}: HabitFormProps) {
+export default function HabitForm({ initialData }: HabitFormProps) {
   const router = useRouter();
   const [formState, setFormState] = useState({
-    name: "",
-    description: "",
-    unit: "",
-    weight: 5,
-    targetFrequency: 7,
-    scoringType: "LINEAR_POSITIVE_CAPPED",
+    name: initialData?.name ?? "",
+    description: initialData?.description ?? "",
+    unit: initialData?.unit ?? "",
+    weight: initialData?.weight ?? 5,
+    targetFrequency: initialData?.targetFrequency ?? 7,
+    scoringType: initialData?.scoringType ?? "LINEAR_POSITIVE_CAPPED",
   });
   const [loading, setLoading] = useState(false);
 
@@ -35,13 +45,20 @@ export default function HabitForm({}: HabitFormProps) {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/habits", {
-        method: "POST",
+      const url = initialData ? `/api/habits/${initialData.id}` : `/api/habits`;
+
+      const method = initialData ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formState),
       });
-      if (!res.ok) throw new Error("Failed to create habit");
-      router.refresh(); // Revalidate list after create
+
+      if (!res.ok) throw new Error("Failed to save habit");
+
+      router.refresh();
+      router.push("/habits"); // redirect after save
     } catch (err) {
       console.error(err);
     } finally {
@@ -51,7 +68,9 @@ export default function HabitForm({}: HabitFormProps) {
 
   return (
     <div className="max-w-xl mx-auto p-4 space-y-6">
-      <h1 className="text-2xl font-semibold">Create New Habit</h1>
+      <h1 className="text-2xl font-semibold">
+        {initialData ? "Edit Habit" : "Create New Habit"}
+      </h1>
 
       <div className="space-y-2">
         <Input
@@ -118,7 +137,7 @@ export default function HabitForm({}: HabitFormProps) {
       </div>
 
       <Button onClick={handleSubmit} disabled={loading}>
-        {loading ? "Creating..." : "Create Habit"}
+        {loading ? "Saving..." : initialData ? "Update Habit" : "Create Habit"}
       </Button>
     </div>
   );
