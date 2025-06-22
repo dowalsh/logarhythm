@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import Link from "next/link";
 
 interface Habit {
   id: string;
@@ -54,7 +55,15 @@ export default function HabitList() {
     <div className="grid gap-4">
       {habits.map((habit) => (
         <Card key={habit.id}>
-          <CardHeader className="font-semibold">{habit.name}</CardHeader>
+          <CardHeader className="font-semibold flex justify-between items-center">
+            <span>{habit.name}</span>
+            <Link
+              href={`/habits/edit/${habit.id}`}
+              className="text-blue-600 hover:underline text-sm"
+            >
+              Edit
+            </Link>
+          </CardHeader>
           <CardContent className="space-y-1">
             {habit.description && <p>{habit.description}</p>}
             {habit.unit && <p>Unit: {habit.unit}</p>}

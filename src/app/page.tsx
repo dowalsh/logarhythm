@@ -1,7 +1,13 @@
-import Image from "next/image";
+import { currentUser } from "@clerk/nextjs/server";
 
-export default function Home() {
+export default async function Home() {
+  const user = await currentUser();
+
   return (
-    <h1 className="text-3xl text-red-500 font-bold">Tailwind is working</h1>
+    <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
+      <div className="lg:col-span-6">Placeholder</div>
+
+      <div className="hidden lg:block lg:col-span-4 sticky top-20"></div>
+    </div>
   );
 }
