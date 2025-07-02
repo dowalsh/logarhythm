@@ -22,7 +22,7 @@ const geistMono = localFont({
 
 // This is your page <head> metadata
 export const metadata: Metadata = {
-  title: "Rogha",
+  title: "Logarhythm",
   description: "Dylan's Playground",
 };
 

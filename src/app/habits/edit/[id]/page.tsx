@@ -2,13 +2,15 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import HabitForm from "@/components/HabitForm";
 
-export default async function EditHabitPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const { userId } = await auth();
+interface PageProps {
+  params: Promise<{ id: string }>; // ✅ Async params required in Next.js 15
+}
 
+export default async function Page({ params }: PageProps) {
+  // ✅ Await params before accessing `id`
+  const { id } = await params;
+
+  const { userId } = await auth();
   if (!userId) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
@@ -20,15 +22,16 @@ export default async function EditHabitPage({
     );
   }
 
-  const habit = await prisma.habit.findUnique({
-    where: { id: params.id, userId },
+  // ✅ Scoped habit lookup
+  const habit = await prisma.habit.findFirst({
+    where: { id, userId },
   });
 
   if (!habit) {
     return <div className="text-center p-6">Habit not found.</div>;
   }
 
-  // Normalize nullable fields: convert null -> undefined
+  // ✅ Normalize optional fields
   const normalizedHabit = {
     id: habit.id,
     name: habit.name,
@@ -37,6 +40,7 @@ export default async function EditHabitPage({
     weight: habit.weight,
     targetFrequency: habit.targetFrequency,
     scoringType: habit.scoringType,
+    habitType: habit.habitType,
   };
 
   return (

@@ -22,6 +22,7 @@ interface HabitFormProps {
     unit?: string;
     weight: number;
     targetFrequency: number;
+    habitType: string;
     scoringType: string;
   };
 }
@@ -34,6 +35,7 @@ export default function HabitForm({ initialData }: HabitFormProps) {
     unit: initialData?.unit ?? "",
     weight: initialData?.weight ?? 5,
     targetFrequency: initialData?.targetFrequency ?? 7,
+    habitType: initialData?.habitType ?? "BOOLEAN",
     scoringType: initialData?.scoringType ?? "LINEAR_POSITIVE_CAPPED",
   });
   const [loading, setLoading] = useState(false);
@@ -113,7 +115,21 @@ export default function HabitForm({ initialData }: HabitFormProps) {
           }
         />
       </div>
-
+      <div className="space-y-2">
+        <label className="font-medium">Habit Type</label>
+        <Select
+          value={formState.habitType}
+          onValueChange={(val) => handleChange("habitType", val)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select Habit Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="BOOLEAN">Boolean</SelectItem>
+            <SelectItem value="NUMERIC">Numeric</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       <div className="space-y-2">
         <label className="font-medium">Scoring Type</label>
         <Select

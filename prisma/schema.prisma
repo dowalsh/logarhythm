@@ -19,6 +19,12 @@ enum HabitScoringType {
   ONE_OFF_BONUS            // Single event bonus (could use later)
 }
 
+enum HabitType {
+  BOOLEAN   // yes/no habits
+  NUMERIC   // countable habits
+}
+
+
 // =========================
 // MODELS
 
@@ -42,6 +48,7 @@ model Habit {
   unit            String?  
   weight          Int              // 1-10 weighting for total score
   targetFrequency Int              // e.g. 6 times per week
+  habitType     HabitType @default(BOOLEAN)
   scoringType     HabitScoringType @default(LINEAR_POSITIVE_CAPPED)
   createdAt       DateTime         @default(now())
 }

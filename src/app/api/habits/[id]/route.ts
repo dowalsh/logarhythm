@@ -1,8 +1,11 @@
+// src/app/api/habits/[id]/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient, HabitScoringType } from "@prisma/client";
+import { HabitScoringType, HabitType } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
+// GET habit by ID
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -13,8 +16,10 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await params;
+
     const habit = await prisma.habit.findUnique({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     if (!habit || habit.userId !== userId) {
@@ -31,6 +36,7 @@ export async function GET(
   }
 }
 
+// UPDATE habit by ID
 export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -42,9 +48,10 @@ export async function PUT(
     }
 
     const body = await req.json();
+    const { id } = await params;
 
     const habit = await prisma.habit.findUnique({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     if (!habit || habit.userId !== userId) {
@@ -52,7 +59,7 @@ export async function PUT(
     }
 
     const updatedHabit = await prisma.habit.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         name: body.name,
         description: body.description,
@@ -60,6 +67,7 @@ export async function PUT(
         weight: body.weight,
         targetFrequency: body.targetFrequency,
         scoringType: body.scoringType as HabitScoringType,
+        habitType: body.habitType as HabitType,
       },
     });
 
@@ -73,6 +81,7 @@ export async function PUT(
   }
 }
 
+// DELETE habit by ID
 export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -83,8 +92,9 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { id } = await params;
     const habit = await prisma.habit.findUnique({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     if (!habit || habit.userId !== userId) {
@@ -92,7 +102,7 @@ export async function DELETE(
     }
 
     await prisma.habit.delete({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     return NextResponse.json({ message: "Habit deleted" }, { status: 200 });
