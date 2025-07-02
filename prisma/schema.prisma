@@ -1,5 +1,3 @@
-// schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,28 +11,27 @@ datasource db {
 // ENUMS
 
 enum HabitScoringType {
-  LINEAR_POSITIVE_CAPPED   // More is better, capped at targetFrequency
-  LINEAR_NEGATIVE_CAPPED   // Less is better, capped at targetFrequency
-  THRESHOLD_TARGET         // Full credit only if target met
-  ONE_OFF_BONUS            // Single event bonus (could use later)
+  LINEAR_POSITIVE_CAPPED
+  LINEAR_NEGATIVE_CAPPED
+  THRESHOLD_TARGET
+  ONE_OFF_BONUS
 }
 
 enum HabitType {
-  BOOLEAN   // yes/no habits
-  NUMERIC   // countable habits
+  BOOLEAN
+  NUMERIC
 }
-
 
 // =========================
 // MODELS
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  createdAt DateTime @default(now())
+  id           String        @id @default(cuid())
+  email        String        @unique
+  createdAt    DateTime      @default(now())
 
-  dailyEntries DailyEntry[]
   habits       Habit[]
+  dailyLogs    DailyLog[]
   modifiers    Modifier[]
   weeklyScores WeeklyScore[]
 }
@@ -45,24 +42,40 @@ model Habit {
   user            User             @relation(fields: [userId], references: [id])
   name            String
   description     String?
-  unit            String?  
-  weight          Int              // 1-10 weighting for total score
-  targetFrequency Int              // e.g. 6 times per week
-  habitType     HabitType @default(BOOLEAN)
+  unit            String?
+  weight          Int              // consider renaming to importance
+  targetFrequency Int
+  habitType       HabitType        @default(BOOLEAN)
   scoringType     HabitScoringType @default(LINEAR_POSITIVE_CAPPED)
   createdAt       DateTime         @default(now())
+
+  habitLogs       HabitLog[]
 }
 
-model DailyEntry {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  date      DateTime
-  data      Json     // flexible habit inputs per day
-  notes     String?
-  createdAt DateTime @default(now())
+model DailyLog {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id])
+  date       DateTime
+  notes      String?     // formerly from DailyEntry
+  createdAt  DateTime    @default(now())
+
+  habitLogs  HabitLog[]
 
   @@unique([userId, date])
+}
+
+model HabitLog {
+  id         String     @id @default(cuid())
+  dailyLogId String
+  habitId    String
+  value      Float?
+  completed  Boolean?
+
+  dailyLog   DailyLog   @relation(fields: [dailyLogId], references: [id])
+  habit      Habit      @relation(fields: [habitId], references: [id])
+
+  @@unique([dailyLogId, habitId])
 }
 
 model Modifier {
