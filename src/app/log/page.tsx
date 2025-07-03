@@ -13,7 +13,10 @@ import { toast } from "react-hot-toast";
 import { fetcher } from "@/lib/swr";
 import { Pencil } from "lucide-react";
 
-// TODO; colours are broken on dark mode, fix this later
+// TODO: colours are broken on dark mode, fix this later
+// TODO: arrows on left and right to go back and forward a day
+// TODO: live score calculations
+// TODO: calendar style drop down
 
 interface Habit {
   id: string;
