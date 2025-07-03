@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-hot-toast";
+import { fetcher } from "@/lib/swr";
 
 // Habit interface from backend
 interface Habit {
@@ -25,9 +26,9 @@ export default function LogPage() {
   const [selectedDate, setSelectedDate] = useState<string>(today);
   console.log("Default selected date:", today);
 
-  // Fetch all habits
-  const { data: habits } = useSWR<Habit[]>("/api/habits");
-  console.log("Habits fetched:", habits);
+  // Fetch all habits using global fetcher
+  const { data: habits } = useSWR<Habit[]>("/api/habits", fetcher);
+  console.log("Habits fetched from /api/habits:", habits);
 
   // State for habit values and notes
   const [logData, setLogData] = useState<Record<string, number | boolean>>({});
@@ -36,21 +37,27 @@ export default function LogPage() {
 
   // Fetch existing log for selected date
   const { data: existingLog, mutate } = useSWR(
-    selectedDate ? `/api/logs?date=${selectedDate}` : null
+    selectedDate ? `/api/logs?date=${selectedDate}` : null,
+    fetcher
   );
   console.log("Selected date:", selectedDate);
-  console.log("Existing log:", existingLog);
+  console.log("Existing log data:", existingLog);
 
-  // Prefill form if existing log is fetched
+  // Prefill form if existing log is fetched, or clear form if not
   useEffect(() => {
     if (existingLog) {
+      console.log("Populating form with existing log:", existingLog);
       setNotes(existingLog.notes || "");
       const filled: Record<string, number | boolean> = {};
       for (const entry of existingLog.habitLogs) {
         filled[entry.habitId] = entry.completed ?? entry.value ?? "";
       }
-      console.log("Prefilled log data:", filled);
+      console.log("Log data filled from existing entry:", filled);
       setLogData(filled);
+    } else {
+      console.log("No log for selected date; clearing form");
+      setNotes("");
+      setLogData({});
     }
   }, [existingLog]);
 
@@ -58,7 +65,7 @@ export default function LogPage() {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      console.log("Submitting log data:", logData);
+      console.log("Submitting log with:", { selectedDate, notes, logData });
       const res = await fetch("/api/logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -76,10 +83,10 @@ export default function LogPage() {
       if (!res.ok) throw new Error("Failed to submit log");
 
       toast.success("Log saved");
-      mutate(); // Revalidate SWR cache
+      mutate();
     } catch (err) {
-      console.error("Error submitting log:", err);
       toast.error("Error saving log");
+      console.error("Error submitting log:", err);
     } finally {
       setLoading(false);
     }
@@ -118,39 +125,42 @@ export default function LogPage() {
       {habits?.length === 0 && (
         <p className="text-sm text-muted">No habits found</p>
       )}
-      {habits?.map((habit) => (
-        <div key={habit.id} className="flex items-center justify-between">
-          <label className="mr-4">{habit.name}</label>
-          {habit.habitType === "BOOLEAN" ? (
-            <Switch
-              checked={!!logData[habit.id]}
-              onCheckedChange={(val) => {
-                console.log(`Switch changed: ${habit.name} = ${val}`);
-                setLogData((d) => ({ ...d, [habit.id]: val }));
-              }}
-            />
-          ) : (
-            <Input
-              type="number"
-              className="w-24"
-              value={logData[habit.id]?.toString() ?? ""}
-              onChange={(e) => {
-                console.log(`Input changed: ${habit.name} = ${e.target.value}`);
-                setLogData((d) => ({
-                  ...d,
-                  [habit.id]: parseFloat(e.target.value),
-                }));
-              }}
-            />
-          )}
-        </div>
-      ))}
+      {habits?.map((habit) => {
+        console.log("Rendering habit:", habit);
+        return (
+          <div key={habit.id} className="flex items-center justify-between">
+            <label className="mr-4">{habit.name}</label>
+            {habit.habitType === "BOOLEAN" ? (
+              <Switch
+                checked={!!logData[habit.id]}
+                onCheckedChange={(val) => {
+                  console.log(`Switch toggled: ${habit.name} =`, val);
+                  setLogData((d) => ({ ...d, [habit.id]: val }));
+                }}
+              />
+            ) : (
+              <Input
+                type="number"
+                className="w-24"
+                value={logData[habit.id]?.toString() ?? ""}
+                onChange={(e) => {
+                  console.log(`Input changed: ${habit.name} =`, e.target.value);
+                  setLogData((d) => ({
+                    ...d,
+                    [habit.id]: parseFloat(e.target.value),
+                  }));
+                }}
+              />
+            )}
+          </div>
+        );
+      })}
 
       {/* Notes input */}
       <Textarea
         value={notes}
         onChange={(e) => {
-          console.log("Notes updated:", e.target.value);
+          console.log("Notes changed:", e.target.value);
           setNotes(e.target.value);
         }}
         placeholder="Any notes for this day?"
