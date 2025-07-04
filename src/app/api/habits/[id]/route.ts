@@ -5,21 +5,21 @@ import { HabitScoringType, HabitType } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
+// Type-safe route context
+type HabitContext = { params: { id: string } };
+
 // GET habit by ID
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(req: NextRequest, context: HabitContext) {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
+    const { id } = context.params;
 
     const habit = await prisma.habit.findUnique({
-      where: { id: id },
+      where: { id },
     });
 
     if (!habit || habit.userId !== userId) {
@@ -37,10 +37,7 @@ export async function GET(
 }
 
 // UPDATE habit by ID
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(req: NextRequest, context: HabitContext) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -48,10 +45,10 @@ export async function PUT(
     }
 
     const body = await req.json();
-    const { id } = await params;
+    const { id } = context.params;
 
     const habit = await prisma.habit.findUnique({
-      where: { id: id },
+      where: { id },
     });
 
     if (!habit || habit.userId !== userId) {
@@ -59,7 +56,7 @@ export async function PUT(
     }
 
     const updatedHabit = await prisma.habit.update({
-      where: { id: id },
+      where: { id },
       data: {
         name: body.name,
         description: body.description,
@@ -82,19 +79,17 @@ export async function PUT(
 }
 
 // DELETE habit by ID
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(req: NextRequest, context: HabitContext) {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
+    const { id } = context.params;
+
     const habit = await prisma.habit.findUnique({
-      where: { id: id },
+      where: { id },
     });
 
     if (!habit || habit.userId !== userId) {
@@ -102,7 +97,7 @@ export async function DELETE(
     }
 
     await prisma.habit.delete({
-      where: { id: id },
+      where: { id },
     });
 
     return NextResponse.json({ message: "Habit deleted" }, { status: 200 });
