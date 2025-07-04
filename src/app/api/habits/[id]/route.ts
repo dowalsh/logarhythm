@@ -5,18 +5,18 @@ import { HabitScoringType, HabitType } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
-// Type-safe route context
-type HabitContext = { params: { id: string } };
-
 // GET habit by ID
-export async function GET(req: NextRequest, context: HabitContext) {
+export async function GET(
+  req: NextRequest,
+  context: { params: { id: string } }
+) {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = context.params;
+    const id = context.params.id;
 
     const habit = await prisma.habit.findUnique({
       where: { id },
@@ -37,7 +37,10 @@ export async function GET(req: NextRequest, context: HabitContext) {
 }
 
 // UPDATE habit by ID
-export async function PUT(req: NextRequest, context: HabitContext) {
+export async function PUT(
+  req: NextRequest,
+  context: { params: { id: string } }
+) {
   try {
     const { userId } = await auth();
     if (!userId) {
@@ -45,7 +48,7 @@ export async function PUT(req: NextRequest, context: HabitContext) {
     }
 
     const body = await req.json();
-    const { id } = context.params;
+    const id = context.params.id;
 
     const habit = await prisma.habit.findUnique({
       where: { id },
@@ -79,14 +82,17 @@ export async function PUT(req: NextRequest, context: HabitContext) {
 }
 
 // DELETE habit by ID
-export async function DELETE(req: NextRequest, context: HabitContext) {
+export async function DELETE(
+  req: NextRequest,
+  context: { params: { id: string } }
+) {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = context.params;
+    const id = context.params.id;
 
     const habit = await prisma.habit.findUnique({
       where: { id },
