@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient, HabitScoringType } from "@prisma/client";
+import { HabitScoringType } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
