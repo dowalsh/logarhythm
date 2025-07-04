@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 // GET habit by ID
 export async function GET(
   req: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -16,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const id = context.params.id;
+    const { id } = await context.params;
 
     const habit = await prisma.habit.findUnique({
       where: { id },
@@ -39,7 +39,7 @@ export async function GET(
 // UPDATE habit by ID
 export async function PUT(
   req: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -48,7 +48,7 @@ export async function PUT(
     }
 
     const body = await req.json();
-    const id = context.params.id;
+    const { id } = await context.params;
 
     const habit = await prisma.habit.findUnique({
       where: { id },
@@ -84,7 +84,7 @@ export async function PUT(
 // DELETE habit by ID
 export async function DELETE(
   req: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     const { userId } = await auth();
@@ -92,7 +92,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const id = context.params.id;
+    const { id } = await context.params;
 
     const habit = await prisma.habit.findUnique({
       where: { id },
