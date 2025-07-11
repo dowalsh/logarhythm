@@ -11,11 +11,19 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
+    // If this new system should be active, deactivate all existing systems first
+    if (body.isActive !== false) {
+      await prisma.scoringSystem.updateMany({
+        where: { userId },
+        data: { isActive: false },
+      });
+    }
+
     const scoringSystem = await prisma.scoringSystem.create({
       data: {
         userId,
         name: body.name,
-        isActive: body.isActive ?? true,
+        isActive: body.isActive !== false, // Default to true unless explicitly false
       },
     });
 
