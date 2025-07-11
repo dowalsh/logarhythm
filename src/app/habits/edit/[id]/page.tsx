@@ -1,6 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import HabitForm from "@/components/HabitForm";
+import { SignInButton } from "@clerk/nextjs";
+import { Button } from "@/components/ui/button";
 
 interface PageProps {
   params: Promise<{ id: string }>; // ✅ Async params required in Next.js 15
@@ -15,9 +17,9 @@ export default async function Page({ params }: PageProps) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
         <h1 className="text-xl font-semibold mb-4">Please sign in</h1>
-        <a href="/sign-in" className="text-blue-500 underline">
-          Sign In
-        </a>
+        <SignInButton mode="modal">
+          <Button variant="default">Sign In</Button>
+        </SignInButton>
       </div>
     );
   }

@@ -1,6 +1,8 @@
 import { auth } from "@clerk/nextjs/server"; // Server-side Clerk auth
 import HabitList from "@/components/HabitList"; // Client-side habit list
 import Link from "next/link"; // Next.js built-in routing
+import { SignInButton } from "@clerk/nextjs"; // Clerk sign-in component
+import { Button } from "@/components/ui/button"; // UI button component
 
 export default async function HabitsPage() {
   // Server-side authentication check (SSR safe)
@@ -10,9 +12,9 @@ export default async function HabitsPage() {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
         <h1 className="text-xl font-semibold mb-4">Please sign in</h1>
-        <a href="/sign-in" className="text-blue-500 underline">
-          Sign In
-        </a>
+        <SignInButton mode="modal">
+          <Button variant="default">Sign In</Button>
+        </SignInButton>
       </div>
     );
   }
