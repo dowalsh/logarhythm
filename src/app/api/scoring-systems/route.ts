@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { HabitType } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
@@ -12,19 +11,17 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
-    const habit = await prisma.habit.create({
+    const scoringSystem = await prisma.scoringSystem.create({
       data: {
         userId,
         name: body.name,
-        description: body.description,
-        unit: body.unit,
-        habitType: body.habitType as HabitType,
+        isActive: body.isActive ?? true,
       },
     });
 
-    return NextResponse.json(habit, { status: 201 });
+    return NextResponse.json(scoringSystem, { status: 201 });
   } catch (error) {
-    console.error("[HABIT_POST_ERROR]", error);
+    console.error("[SCORING_SYSTEM_POST_ERROR]", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }
@@ -39,14 +36,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const habits = await prisma.habit.findMany({
+    const scoringSystems = await prisma.scoringSystem.findMany({
       where: { userId },
+      include: {
+        habits: {
+          include: {
+            habit: true,
+          },
+        },
+      },
       orderBy: { createdAt: "asc" },
     });
 
-    return NextResponse.json(habits, { status: 200 });
+    return NextResponse.json(scoringSystems, { status: 200 });
   } catch (error) {
-    console.error("[HABIT_GET_ERROR]", error);
+    console.error("[SCORING_SYSTEM_GET_ERROR]", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

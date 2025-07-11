@@ -20,10 +20,7 @@ interface HabitFormProps {
     name: string;
     description?: string;
     unit?: string;
-    weight: number;
-    targetFrequency: number;
     habitType: string;
-    scoringType: string;
   };
 }
 
@@ -33,10 +30,7 @@ export default function HabitForm({ initialData }: HabitFormProps) {
     name: initialData?.name ?? "",
     description: initialData?.description ?? "",
     unit: initialData?.unit ?? "",
-    weight: initialData?.weight ?? 5,
-    targetFrequency: initialData?.targetFrequency ?? 7,
     habitType: initialData?.habitType ?? "BOOLEAN",
-    scoringType: initialData?.scoringType ?? "LINEAR_POSITIVE_CAPPED",
   });
   const [loading, setLoading] = useState(false);
 
@@ -93,29 +87,6 @@ export default function HabitForm({ initialData }: HabitFormProps) {
       </div>
 
       <div className="space-y-2">
-        <label className="font-medium">Weight ({formState.weight})</label>
-        <Slider
-          min={1}
-          max={10}
-          step={1}
-          value={[formState.weight]}
-          onValueChange={(val) => handleChange("weight", val[0])}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <label className="font-medium">Target Frequency (per week)</label>
-        <Input
-          type="number"
-          min={1}
-          max={14}
-          value={formState.targetFrequency}
-          onChange={(e) =>
-            handleChange("targetFrequency", parseInt(e.target.value) || 0)
-          }
-        />
-      </div>
-      <div className="space-y-2">
         <label className="font-medium">Habit Type</label>
         <Select
           value={formState.habitType}
@@ -127,27 +98,6 @@ export default function HabitForm({ initialData }: HabitFormProps) {
           <SelectContent>
             <SelectItem value="BOOLEAN">Boolean</SelectItem>
             <SelectItem value="NUMERIC">Numeric</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <label className="font-medium">Scoring Type</label>
-        <Select
-          value={formState.scoringType}
-          onValueChange={(val) => handleChange("scoringType", val)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select Scoring Type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="LINEAR_POSITIVE_CAPPED">
-              Linear Positive Capped
-            </SelectItem>
-            <SelectItem value="LINEAR_NEGATIVE_CAPPED">
-              Linear Negative Capped
-            </SelectItem>
-            <SelectItem value="THRESHOLD_TARGET">Threshold Target</SelectItem>
-            <SelectItem value="ONE_OFF_BONUS">One-Off Bonus</SelectItem>
           </SelectContent>
         </Select>
       </div>

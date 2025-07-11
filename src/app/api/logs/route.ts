@@ -10,9 +10,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { date, notes, logs } = await req.json();
+    const { date, notes, logs, scoringSystemId } = await req.json();
 
-    if (!date || !Array.isArray(logs)) {
+    if (!date || !Array.isArray(logs) || !scoringSystemId) {
       return new NextResponse("Invalid payload", { status: 400 });
     }
 
@@ -23,9 +23,10 @@ export async function POST(req: NextRequest) {
         where: {
           userId_date: { userId, date: parsedDate },
         },
-        update: { notes },
+        update: { notes, scoringSystemId },
         create: {
           userId,
+          scoringSystemId,
           date: parsedDate,
           notes,
         },

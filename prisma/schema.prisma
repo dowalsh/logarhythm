@@ -26,14 +26,15 @@ enum HabitType {
 // MODELS
 
 model User {
-  id           String        @id @default(cuid())
-  email        String        @unique
-  createdAt    DateTime      @default(now())
+  id              String           @id @default(cuid())
+  email           String           @unique
+  createdAt       DateTime         @default(now())
 
-  habits       Habit[]
-  dailyLogs    DailyLog[]
-  modifiers    Modifier[]
-  weeklyScores WeeklyScore[]
+  habits          Habit[]
+  dailyLogs       DailyLog[]
+  modifiers       Modifier[]
+  weeklyScores    WeeklyScore[]
+  scoringSystems  ScoringSystem[]
 }
 
 model Habit {
@@ -43,24 +44,50 @@ model Habit {
   name            String
   description     String?
   unit            String?
-  weight          Int              // consider renaming to importance
-  targetFrequency Int
   habitType       HabitType        @default(BOOLEAN)
-  scoringType     HabitScoringType @default(LINEAR_POSITIVE_CAPPED)
   createdAt       DateTime         @default(now())
 
   habitLogs       HabitLog[]
+  scoringConfigs  ScoredHabit[]
+}
+
+model ScoringSystem {
+  id         String         @id @default(cuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id])
+  name       String
+  isActive   Boolean        @default(true)
+  createdAt  DateTime       @default(now())
+
+  habits     ScoredHabit[]
+  dailyLogs  DailyLog[]
+}
+
+model ScoredHabit {
+  id              String           @id @default(cuid())
+  scoringSystemId String
+  habitId         String
+
+  scoringType     HabitScoringType
+  weight          Int
+
+  scoringSystem   ScoringSystem    @relation(fields: [scoringSystemId], references: [id])
+  habit           Habit            @relation(fields: [habitId], references: [id])
+
+  @@unique([scoringSystemId, habitId])
 }
 
 model DailyLog {
-  id         String      @id @default(cuid())
-  userId     String
-  user       User        @relation(fields: [userId], references: [id])
-  date       DateTime
-  notes      String?     // formerly from DailyEntry
-  createdAt  DateTime    @default(now())
+  id               String         @id @default(cuid())
+  userId           String
+  scoringSystemId  String
+  user             User           @relation(fields: [userId], references: [id])
+  scoringSystem    ScoringSystem  @relation(fields: [scoringSystemId], references: [id])
+  date             DateTime
+  notes            String?
+  createdAt        DateTime       @default(now())
 
-  habitLogs  HabitLog[]
+  habitLogs        HabitLog[]
 
   @@unique([userId, date])
 }

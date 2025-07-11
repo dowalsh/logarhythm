@@ -25,9 +25,6 @@ interface Habit {
   name: string;
   description?: string;
   unit?: string;
-  weight: number;
-  targetFrequency: number;
-  scoringType: string;
   habitType: string;
   createdAt: string;
 }
@@ -156,17 +153,8 @@ export default function HabitList() {
               <div className="font-medium">Unit:</div>
               <div>{habit.unit ?? "-"}</div>
 
-              <div className="font-medium">Weight:</div>
-              <div>{habit.weight}</div>
-
-              <div className="font-medium">Target:</div>
-              <div>{habit.targetFrequency} per week</div>
               <div className="font-medium">Habit Type:</div>
-              <div>{habit.habitType} </div>
-              <div className="font-medium">Scoring Type:</div>
-              <div>
-                <ScoringTypeBadge scoringType={habit.scoringType} />
-              </div>
+              <div>{habit.habitType}</div>
             </div>
           </CardContent>
         </Card>

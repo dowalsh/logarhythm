@@ -1,7 +1,7 @@
 // src/app/api/habits/[id]/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { HabitScoringType, HabitType } from "@prisma/client";
+import { HabitType } from "@prisma/client";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
@@ -64,9 +64,6 @@ export async function PUT(
         name: body.name,
         description: body.description,
         unit: body.unit,
-        weight: body.weight,
-        targetFrequency: body.targetFrequency,
-        scoringType: body.scoringType as HabitScoringType,
         habitType: body.habitType as HabitType,
       },
     });

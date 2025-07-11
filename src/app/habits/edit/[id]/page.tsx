@@ -37,9 +37,6 @@ export default async function Page({ params }: PageProps) {
     name: habit.name,
     description: habit.description ?? undefined,
     unit: habit.unit ?? undefined,
-    weight: habit.weight,
-    targetFrequency: habit.targetFrequency,
-    scoringType: habit.scoringType,
     habitType: habit.habitType,
   };
 
