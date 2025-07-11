@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -19,6 +18,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Trash2, Pencil } from "lucide-react";
 import { ScoringTypeBadge } from "@/components/ScoringTypeBadge";
+import EditHabitDialog from "@/components/EditHabitDialog";
 
 interface Habit {
   id: string;
@@ -34,6 +34,8 @@ export default function HabitList() {
   const [loading, setLoading] = useState(true);
   const [selectedHabit, setSelectedHabit] = useState<Habit | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [editHabit, setEditHabit] = useState<Habit | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
 
   useEffect(() => {
     fetchHabits();
@@ -69,6 +71,11 @@ export default function HabitList() {
     }
   };
 
+  const handleEdit = (habit: Habit) => {
+    setEditHabit(habit);
+    setShowEditDialog(true);
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -83,82 +90,93 @@ export default function HabitList() {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {habits.map((habit) => (
-        <Card key={habit.id} className="relative">
-          <CardHeader className="font-semibold">{habit.name}</CardHeader>
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {habits.map((habit) => (
+          <Card key={habit.id} className="relative">
+            <CardHeader className="font-semibold">{habit.name}</CardHeader>
 
-          {/* Edit & Delete icons */}
-          <div className="absolute top-3 right-3 flex gap-2">
-            <Link href={`/habits/edit/${habit.id}`}>
-              <Button variant="ghost" size="icon" className="hover:bg-muted">
+            {/* Edit & Delete icons */}
+            <div className="absolute top-3 right-3 flex gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="hover:bg-muted"
+                onClick={() => handleEdit(habit)}
+              >
                 <Pencil className="w-4 h-4 text-primary" />
               </Button>
-            </Link>
 
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hover:bg-destructive/20 text-destructive"
-                  onClick={() => setSelectedHabit(habit)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </DialogTrigger>
-
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Confirm Delete</DialogTitle>
-                </DialogHeader>
-                <p>
-                  Are you sure you want to delete <b>{habit.name}</b>?
-                </p>
-
-                <div className="flex justify-end gap-2 pt-4">
+              <Dialog>
+                <DialogTrigger asChild>
                   <Button
-                    variant="outline"
-                    onClick={() => setSelectedHabit(null)}
+                    variant="ghost"
+                    size="icon"
+                    className="hover:bg-destructive/20 text-destructive"
+                    onClick={() => setSelectedHabit(habit)}
                   >
-                    Cancel
+                    <Trash2 className="w-4 h-4" />
                   </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={handleDelete}
-                    disabled={deleteLoading}
-                  >
-                    {deleteLoading ? "Deleting..." : "Delete"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
+                </DialogTrigger>
 
-          <CardContent className="space-y-2 text-sm">
-            {/* Description with clamp + tooltip */}
-            {habit.description && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <p className="text-muted-foreground line-clamp-2 cursor-help min-h-[3rem]">
-                    {habit.description ?? ""}
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Confirm Delete</DialogTitle>
+                  </DialogHeader>
+                  <p>
+                    Are you sure you want to delete <b>{habit.name}</b>?
                   </p>
-                </TooltipTrigger>
-                <TooltipContent>{habit.description}</TooltipContent>
-              </Tooltip>
-            )}
 
-            {/* Metadata grid */}
-            <div className="grid grid-cols-2 gap-y-1">
-              <div className="font-medium">Unit:</div>
-              <div>{habit.unit ?? "-"}</div>
-
-              <div className="font-medium">Habit Type:</div>
-              <div>{habit.habitType}</div>
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedHabit(null)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleDelete}
+                      disabled={deleteLoading}
+                    >
+                      {deleteLoading ? "Deleting..." : "Delete"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+
+            <CardContent className="space-y-2 text-sm">
+              {/* Description with clamp + tooltip */}
+              {habit.description && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <p className="text-muted-foreground line-clamp-2 cursor-help min-h-[3rem]">
+                      {habit.description ?? ""}
+                    </p>
+                  </TooltipTrigger>
+                  <TooltipContent>{habit.description}</TooltipContent>
+                </Tooltip>
+              )}
+
+              {/* Metadata grid */}
+              <div className="grid grid-cols-2 gap-y-1">
+                <div className="font-medium">Unit:</div>
+                <div>{habit.unit ?? "-"}</div>
+
+                <div className="font-medium">Habit Type:</div>
+                <div>{habit.habitType}</div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <EditHabitDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        habit={editHabit}
+      />
+    </>
   );
 }
