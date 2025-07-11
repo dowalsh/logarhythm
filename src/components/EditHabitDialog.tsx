@@ -24,7 +24,6 @@ interface Habit {
   id: string;
   name: string;
   description?: string;
-  unit?: string;
   habitType: string;
 }
 
@@ -43,7 +42,6 @@ export default function EditHabitDialog({
   const [formState, setFormState] = useState({
     name: "",
     description: "",
-    unit: "",
     habitType: "BOOLEAN",
   });
   const [loading, setLoading] = useState(false);
@@ -54,7 +52,6 @@ export default function EditHabitDialog({
       setFormState({
         name: habit.name,
         description: habit.description || "",
-        unit: habit.unit || "",
         habitType: habit.habitType,
       });
     }
@@ -119,14 +116,6 @@ export default function EditHabitDialog({
               value={formState.description}
               onChange={(e) => handleChange("description", e.target.value)}
               rows={3}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Unit</label>
-            <Input
-              placeholder="e.g. minutes, reps, pages"
-              value={formState.unit}
-              onChange={(e) => handleChange("unit", e.target.value)}
             />
           </div>
           <div className="space-y-2">

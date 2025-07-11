@@ -48,7 +48,6 @@ interface Habit {
   id: string;
   name: string;
   description?: string;
-  unit?: string;
   habitType: "BOOLEAN" | "NUMERIC";
   createdAt: string;
 }
@@ -447,14 +446,6 @@ export default function ScoringSchemeBuilder() {
                             <p className="text-foreground mt-1">
                               {scoredHabit.habit.description ||
                                 "No description"}
-                            </p>
-                          </div>
-                          <div>
-                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                              Unit
-                            </Label>
-                            <p className="text-foreground mt-1">
-                              {scoredHabit.habit.unit || "None"}
                             </p>
                           </div>
                           <div>

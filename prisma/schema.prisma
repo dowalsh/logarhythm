@@ -43,7 +43,6 @@ model Habit {
   user            User             @relation(fields: [userId], references: [id])
   name            String
   description     String?
-  unit            String?
   habitType       HabitType        @default(BOOLEAN)
   createdAt       DateTime         @default(now())
 

@@ -17,7 +17,6 @@ export async function POST(req: NextRequest) {
         userId,
         name: body.name,
         description: body.description,
-        unit: body.unit,
         habitType: body.habitType as HabitType,
       },
     });

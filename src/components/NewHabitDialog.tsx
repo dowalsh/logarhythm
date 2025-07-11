@@ -33,7 +33,6 @@ export default function NewHabitDialog({
   const [formState, setFormState] = useState({
     name: "",
     description: "",
-    unit: "",
     habitType: "BOOLEAN",
   });
   const [loading, setLoading] = useState(false);
@@ -62,7 +61,6 @@ export default function NewHabitDialog({
       setFormState({
         name: "",
         description: "",
-        unit: "",
         habitType: "BOOLEAN",
       });
       onOpenChange(false);
@@ -76,7 +74,7 @@ export default function NewHabitDialog({
   };
 
   const handleCancel = () => {
-    setFormState({ name: "", description: "", unit: "", habitType: "BOOLEAN" });
+    setFormState({ name: "", description: "", habitType: "BOOLEAN" });
     onOpenChange(false);
   };
 
@@ -102,14 +100,6 @@ export default function NewHabitDialog({
               value={formState.description}
               onChange={(e) => handleChange("description", e.target.value)}
               rows={3}
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Unit</label>
-            <Input
-              placeholder="e.g. minutes, reps, pages"
-              value={formState.unit}
-              onChange={(e) => handleChange("unit", e.target.value)}
             />
           </div>
           <div className="space-y-2">

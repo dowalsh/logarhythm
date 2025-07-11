@@ -63,7 +63,6 @@ export async function PUT(
       data: {
         name: body.name,
         description: body.description,
-        unit: body.unit,
         habitType: body.habitType as HabitType,
       },
     });

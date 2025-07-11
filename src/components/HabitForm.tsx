@@ -19,7 +19,6 @@ interface HabitFormProps {
     id: string;
     name: string;
     description?: string;
-    unit?: string;
     habitType: string;
   };
 }
@@ -29,7 +28,6 @@ export default function HabitForm({ initialData }: HabitFormProps) {
   const [formState, setFormState] = useState({
     name: initialData?.name ?? "",
     description: initialData?.description ?? "",
-    unit: initialData?.unit ?? "",
     habitType: initialData?.habitType ?? "BOOLEAN",
   });
   const [loading, setLoading] = useState(false);
@@ -78,11 +76,6 @@ export default function HabitForm({ initialData }: HabitFormProps) {
           placeholder="Description (optional)"
           value={formState.description}
           onChange={(e) => handleChange("description", e.target.value)}
-        />
-        <Input
-          placeholder="Unit (e.g. minutes, reps, pages)"
-          value={formState.unit}
-          onChange={(e) => handleChange("unit", e.target.value)}
         />
       </div>
 

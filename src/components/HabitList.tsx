@@ -25,7 +25,6 @@ interface Habit {
   id: string;
   name: string;
   description?: string;
-  unit?: string;
   habitType: string;
   createdAt: string;
 }
@@ -186,9 +185,6 @@ export default function HabitList() {
 
                     {/* Metadata grid */}
                     <div className="grid grid-cols-2 gap-y-1">
-                      <div className="font-medium">Unit:</div>
-                      <div>{habit.unit ?? "-"}</div>
-
                       <div className="font-medium">Habit Type:</div>
                       <div>{habit.habitType}</div>
                     </div>
