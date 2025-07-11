@@ -40,7 +40,6 @@ import {
   Circle,
   ChevronDown,
   ChevronRight,
-  Settings,
   Target,
 } from "lucide-react";
 import { ScoringTypeBadge } from "./ScoringTypeBadge";
@@ -265,7 +264,6 @@ export default function ScoringSchemeBuilder() {
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Settings className="w-5 h-5" />
               <span>Scoring Schemes</span>
             </div>
             <Button onClick={() => setShowCreateDialog(true)}>

@@ -3,6 +3,7 @@
 import HabitList from "@/components/HabitList";
 import ScoringSchemeBuilder from "@/components/ScoringSchemeBuilder";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Target, Repeat } from "lucide-react";
 
 export default function HabitsPageContent() {
   return (
@@ -14,8 +15,14 @@ export default function HabitsPageContent() {
       {/* Tabs to organize content */}
       <Tabs defaultValue="scoring" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="scoring">Scoring Schemes</TabsTrigger>
-          <TabsTrigger value="habits">All Habits</TabsTrigger>
+          <TabsTrigger value="scoring" className="flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            Scoring Schemes
+          </TabsTrigger>
+          <TabsTrigger value="habits" className="flex items-center gap-2">
+            <Repeat className="h-4 w-4" />
+            All Habits
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="scoring" className="space-y-4">
