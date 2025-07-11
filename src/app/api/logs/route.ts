@@ -5,9 +5,32 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get the current user from Clerk to find their email
+    const { currentUser } = await import("@clerk/nextjs/server");
+    const user = await currentUser();
+
+    if (!user || !user.emailAddresses[0]?.emailAddress) {
+      return NextResponse.json(
+        { error: "User email not found" },
+        { status: 400 }
+      );
+    }
+
+    // Find the user in our database by email
+    const dbUser = await prisma.user.findUnique({
+      where: { email: user.emailAddresses[0].emailAddress },
+    });
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: "User not found in database" },
+        { status: 404 }
+      );
     }
 
     const { date, notes, logs, scoringSystemId } = await req.json();
@@ -21,11 +44,11 @@ export async function POST(req: NextRequest) {
     await prisma.$transaction(async (tx) => {
       const dailyLog = await prisma.dailyLog.upsert({
         where: {
-          userId_date: { userId, date: parsedDate },
+          userId_date: { userId: dbUser.id, date: parsedDate },
         },
         update: { notes, scoringSystemId },
         create: {
-          userId,
+          userId: dbUser.id,
           scoringSystemId,
           date: parsedDate,
           notes,
@@ -66,8 +89,25 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: Request) {
-  const { userId } = await auth();
-  if (!userId) return new NextResponse("Unauthorized", { status: 401 });
+  const { userId: clerkUserId } = await auth();
+  if (!clerkUserId) return new NextResponse("Unauthorized", { status: 401 });
+
+  // Get the current user from Clerk to find their email
+  const { currentUser } = await import("@clerk/nextjs/server");
+  const user = await currentUser();
+
+  if (!user || !user.emailAddresses[0]?.emailAddress) {
+    return new NextResponse("User email not found", { status: 400 });
+  }
+
+  // Find the user in our database by email
+  const dbUser = await prisma.user.findUnique({
+    where: { email: user.emailAddresses[0].emailAddress },
+  });
+
+  if (!dbUser) {
+    return new NextResponse("User not found in database", { status: 404 });
+  }
 
   try {
     const { searchParams } = new URL(req.url);
@@ -80,7 +120,7 @@ export async function GET(req: Request) {
       const dailyLog = await prisma.dailyLog.findUnique({
         where: {
           userId_date: {
-            userId,
+            userId: dbUser.id,
             date: parsedDate,
           },
         },
@@ -101,7 +141,7 @@ export async function GET(req: Request) {
     } else {
       // Get all logs for the user
       const allLogs = await prisma.dailyLog.findMany({
-        where: { userId },
+        where: { userId: dbUser.id },
         include: {
           habitLogs: {
             include: {

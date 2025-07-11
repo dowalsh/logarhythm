@@ -23,11 +23,13 @@ import { toast } from "react-hot-toast";
 interface NewHabitDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
 export default function NewHabitDialog({
   open,
   onOpenChange,
+  onSuccess,
 }: NewHabitDialogProps) {
   const router = useRouter();
   const [formState, setFormState] = useState({
@@ -65,6 +67,7 @@ export default function NewHabitDialog({
       });
       onOpenChange(false);
       router.refresh();
+      onSuccess?.();
     } catch (err) {
       console.error(err);
       toast.error("Failed to create habit");

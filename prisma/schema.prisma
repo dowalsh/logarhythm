@@ -69,6 +69,7 @@ model ScoredHabit {
 
   scoringType     HabitScoringType
   weight          Int
+  targetFrequency Int?
 
   scoringSystem   ScoringSystem    @relation(fields: [scoringSystemId], references: [id])
   habit           Habit            @relation(fields: [habitId], references: [id])

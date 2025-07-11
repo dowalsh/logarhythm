@@ -41,8 +41,15 @@ import {
   ChevronDown,
   ChevronRight,
   Target,
+  Pencil,
+  Info,
 } from "lucide-react";
 import { ScoringTypeBadge } from "./ScoringTypeBadge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Habit {
   id: string;
@@ -58,6 +65,7 @@ interface ScoredHabit {
   habitId: string;
   scoringType: string;
   weight: number;
+  targetFrequency?: number;
   habit: Habit;
 }
 
@@ -67,6 +75,15 @@ interface ScoringScheme {
   isActive: boolean;
   createdAt: string;
   habits: ScoredHabit[];
+}
+
+interface EditableScoredHabit {
+  id?: string; // undefined for new rows
+  habitId: string;
+  scoringType: string;
+  targetFrequency?: number;
+  weight: number;
+  isNew?: boolean;
 }
 
 export default function ScoringSchemeBuilder() {
@@ -79,16 +96,36 @@ export default function ScoringSchemeBuilder() {
   // Form states for creating/editing
   const [schemeName, setSchemeName] = useState("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showHabitDialog, setShowHabitDialog] = useState(false);
-  const [selectedHabitId, setSelectedHabitId] = useState("");
-  const [newHabitWeight, setNewHabitWeight] = useState(5);
-  const [newHabitScoringType, setNewHabitScoringType] = useState(
-    "LINEAR_POSITIVE_CAPPED"
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editSchemeId, setEditSchemeId] = useState<string | null>(null);
+  const [editSchemeName, setEditSchemeName] = useState("");
+
+  // Editable scored habits for the active scheme
+  const [editableHabits, setEditableHabits] = useState<EditableScoredHabit[]>(
+    []
   );
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (activeScheme) {
+      // Convert existing scored habits to editable format
+      const editable = activeScheme.habits.map((sh) => ({
+        id: sh.id,
+        habitId: sh.habitId,
+        scoringType: sh.scoringType,
+        targetFrequency: sh.targetFrequency || 0,
+        weight: sh.weight,
+        isNew: false,
+      }));
+      setEditableHabits(editable);
+    } else {
+      setEditableHabits([]);
+    }
+  }, [activeScheme]);
 
   const fetchData = async () => {
     try {
@@ -177,37 +214,83 @@ export default function ScoringSchemeBuilder() {
     }
   };
 
-  const addHabitToScheme = async () => {
-    if (!activeScheme || !selectedHabitId) {
-      toast.error("Please select a habit");
-      return;
+  const addEmptyRow = () => {
+    if (!activeScheme) return;
+
+    const newRow: EditableScoredHabit = {
+      habitId: "",
+      scoringType: "LINEAR_POSITIVE_CAPPED",
+      targetFrequency: 0,
+      weight: 5,
+      isNew: true,
+    };
+
+    setEditableHabits([...editableHabits, newRow]);
+  };
+
+  const updateEditableHabit = (
+    index: number,
+    field: keyof EditableScoredHabit,
+    value: any
+  ) => {
+    const updated = [...editableHabits];
+    updated[index] = { ...updated[index], [field]: value };
+    setEditableHabits(updated);
+  };
+
+  const removeEditableHabit = (index: number) => {
+    const habit = editableHabits[index];
+
+    if (habit.id && !habit.isNew) {
+      // Delete existing scored habit
+      removeHabitFromScheme(habit.id);
+    } else {
+      // Remove from local state
+      const updated = editableHabits.filter((_, i) => i !== index);
+      setEditableHabits(updated);
     }
+  };
+
+  const saveEditableHabits = async () => {
+    if (!activeScheme) return;
 
     try {
-      const res = await fetch("/api/scored-habits", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scoringSystemId: activeScheme.id,
-          habitId: selectedHabitId,
-          scoringType: newHabitScoringType,
-          weight: newHabitWeight,
-        }),
-      });
-
-      if (res.ok) {
-        toast.success("Habit added to scoring scheme!");
-        setSelectedHabitId("");
-        setNewHabitWeight(5);
-        setNewHabitScoringType("LINEAR_POSITIVE_CAPPED");
-        setShowHabitDialog(false);
-        fetchData();
-      } else {
-        throw new Error("Failed to add habit");
+      // Save new habits and update existing ones
+      for (const habit of editableHabits) {
+        if (habit.habitId) {
+          if (habit.isNew) {
+            // Create new scored habit
+            await fetch("/api/scored-habits", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                scoringSystemId: activeScheme.id,
+                habitId: habit.habitId,
+                scoringType: habit.scoringType,
+                weight: habit.weight,
+                targetFrequency: habit.targetFrequency,
+              }),
+            });
+          } else if (habit.id) {
+            // Update existing scored habit
+            await fetch(`/api/scored-habits/${habit.id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                scoringType: habit.scoringType,
+                weight: habit.weight,
+                targetFrequency: habit.targetFrequency,
+              }),
+            });
+          }
+        }
       }
+
+      toast.success("Changes saved!");
+      fetchData();
     } catch (error) {
-      console.error("Error adding habit:", error);
-      toast.error("Failed to add habit to scoring scheme");
+      console.error("Error saving habits:", error);
+      toast.error("Failed to save changes");
     }
   };
 
@@ -243,6 +326,10 @@ export default function ScoringSchemeBuilder() {
     if (!activeScheme) return habits;
     const usedHabitIds = new Set(activeScheme.habits.map((sh) => sh.habitId));
     return habits.filter((habit) => !usedHabitIds.has(habit.id));
+  };
+
+  const getHabitById = (habitId: string) => {
+    return habits.find((h) => h.id === habitId);
   };
 
   if (loading) {
@@ -313,6 +400,17 @@ export default function ScoringSchemeBuilder() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setEditSchemeId(scheme.id);
+                        setEditSchemeName(scheme.name);
+                        setEditDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
                     {!scheme.isActive && (
                       <Button
                         variant="outline"
@@ -325,6 +423,55 @@ export default function ScoringSchemeBuilder() {
                     <Badge variant={scheme.isActive ? "default" : "secondary"}>
                       {scheme.isActive ? "Active" : "Inactive"}
                     </Badge>
+                    {/* Delete button for inactive schemes */}
+                    {!scheme.isActive && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              Delete Scoring Scheme
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete "{scheme.name}"?
+                              This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch(
+                                    `/api/scoring-systems/${scheme.id}`,
+                                    {
+                                      method: "DELETE",
+                                    }
+                                  );
+                                  if (res.ok) {
+                                    toast.success("Scoring scheme deleted!");
+                                    fetchData();
+                                  } else {
+                                    throw new Error("Failed to delete scheme");
+                                  }
+                                } catch (error) {
+                                  toast.error(
+                                    "Failed to delete scoring scheme"
+                                  );
+                                }
+                              }}
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
                   </div>
                 </div>
               ))}
@@ -342,19 +489,36 @@ export default function ScoringSchemeBuilder() {
                 <Target className="w-5 h-5" />
                 <span>Active Scheme: {activeScheme.name}</span>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowHabitDialog(true)}
-                disabled={getAvailableHabits().length === 0}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Habit
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={addEmptyRow}
+                  disabled={!isEditing}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Habit
+                </Button>
+                {isEditing ? (
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      await saveEditableHabits();
+                      setIsEditing(false);
+                    }}
+                  >
+                    Save Changes
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={() => setIsEditing(true)}>
+                    Edit
+                  </Button>
+                )}
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {activeScheme.habits.length === 0 ? (
+            {editableHabits.length === 0 ? (
               <div className="text-center py-8">
                 <Target className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium mb-2">
@@ -364,103 +528,175 @@ export default function ScoringSchemeBuilder() {
                   Add habits to your scoring scheme to start tracking them with
                   weights and scoring types.
                 </p>
-                <Button onClick={() => setShowHabitDialog(true)}>
+                <Button onClick={addEmptyRow}>
                   <Plus className="w-4 h-4 mr-2" />
                   Add First Habit
                 </Button>
               </div>
             ) : (
-              <div className="space-y-3">
-                {activeScheme.habits.map((scoredHabit) => (
-                  <div
-                    key={scoredHabit.id}
-                    className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 flex-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            toggleHabitExpansion(scoredHabit.habitId)
-                          }
-                        >
-                          {expandedHabits.has(scoredHabit.habitId) ? (
-                            <ChevronDown className="w-4 h-4" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4" />
-                          )}
-                        </Button>
-                        <div className="flex-1">
-                          <h4 className="font-medium">
-                            {scoredHabit.habit.name}
-                          </h4>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+              <div className="space-y-4">
+                {/* Table Header */}
+                <div className="grid grid-cols-12 gap-4 text-sm font-medium text-muted-foreground border-b pb-2">
+                  <div className="col-span-4">Habit</div>
+                  <div className="col-span-3">Scoring Type</div>
+                  <div className="col-span-2">Target</div>
+                  <div className="col-span-2">Weight</div>
+                  <div className="col-span-1"></div>
+                </div>
+
+                {/* Table Rows */}
+                {editableHabits.map((habit, index) => {
+                  const habitData = getHabitById(habit.habitId);
+                  return (
+                    <div
+                      key={index}
+                      className="grid grid-cols-12 gap-4 items-center py-3 border-b"
+                    >
+                      {/* Habit Selection */}
+                      <div className="col-span-4">
+                        {isEditing ? (
+                          <Select
+                            value={habit.habitId}
+                            onValueChange={(value) =>
+                              updateEditableHabit(index, "habitId", value)
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select habit" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {habits.map((h) => (
+                                <SelectItem key={h.id} value={h.id}>
+                                  <div className="flex items-center gap-2">
+                                    <span>{h.name}</span>
+                                    {h.description && (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Info className="w-3 h-3 text-muted-foreground" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p className="max-w-xs">
+                                            {h.description}
+                                          </p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    )}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div className="flex items-center gap-2">
                             <span className="font-medium">
-                              Weight: {scoredHabit.weight}
+                              {habitData?.name || "No habit selected"}
                             </span>
-                            <Separator orientation="vertical" className="h-4" />
-                            <ScoringTypeBadge
-                              scoringType={scoredHabit.scoringType}
-                            />
+                            {habitData?.description && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="w-3 h-3 text-muted-foreground" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="max-w-xs">
+                                    {habitData.description}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
                           </div>
-                        </div>
+                        )}
                       </div>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm">
+
+                      {/* Scoring Type */}
+                      <div className="col-span-3">
+                        {isEditing ? (
+                          <Select
+                            value={habit.scoringType}
+                            onValueChange={(value) =>
+                              updateEditableHabit(index, "scoringType", value)
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="LINEAR_POSITIVE_CAPPED">
+                                Linear Positive Capped
+                              </SelectItem>
+                              <SelectItem value="LINEAR_NEGATIVE_CAPPED">
+                                Linear Negative Capped
+                              </SelectItem>
+                              <SelectItem value="THRESHOLD_TARGET">
+                                Threshold Target
+                              </SelectItem>
+                              <SelectItem value="ONE_OFF_BONUS">
+                                One-Off Bonus
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <ScoringTypeBadge scoringType={habit.scoringType} />
+                        )}
+                      </div>
+
+                      {/* Target Frequency */}
+                      <div className="col-span-2">
+                        {isEditing ? (
+                          <Input
+                            type="number"
+                            value={habit.targetFrequency || ""}
+                            onChange={(e) =>
+                              updateEditableHabit(
+                                index,
+                                "targetFrequency",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            placeholder="0"
+                            min="0"
+                          />
+                        ) : (
+                          <span>{habit.targetFrequency || 0}</span>
+                        )}
+                      </div>
+
+                      {/* Weight */}
+                      <div className="col-span-2">
+                        {isEditing ? (
+                          <Input
+                            type="number"
+                            value={habit.weight}
+                            onChange={(e) =>
+                              updateEditableHabit(
+                                index,
+                                "weight",
+                                parseInt(e.target.value) || 1
+                              )
+                            }
+                            placeholder="5"
+                            min="1"
+                            max="10"
+                          />
+                        ) : (
+                          <span>{habit.weight}</span>
+                        )}
+                      </div>
+
+                      {/* Delete Button */}
+                      <div className="col-span-1">
+                        {isEditing && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeEditableHabit(index)}
+                          >
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Remove Habit</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to remove "
-                              {scoredHabit.habit.name}" from this scoring
-                              scheme? This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() =>
-                                removeHabitFromScheme(scoredHabit.id)
-                              }
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              Remove
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-
-                    {expandedHabits.has(scoredHabit.habitId) && (
-                      <div className="mt-4 pt-4 border-t">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                              Description
-                            </Label>
-                            <p className="text-foreground mt-1">
-                              {scoredHabit.habit.description ||
-                                "No description"}
-                            </p>
-                          </div>
-                          <div>
-                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                              Habit Type
-                            </Label>
-                            <Badge variant="outline" className="mt-1">
-                              {scoredHabit.habit.habitType}
-                            </Badge>
-                          </div>
-                        </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -497,76 +733,59 @@ export default function ScoringSchemeBuilder() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Habit to Scheme Dialog */}
-      <Dialog open={showHabitDialog} onOpenChange={setShowHabitDialog}>
+      {/* Edit Scoring Scheme Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Habit to Scoring Scheme</DialogTitle>
+            <DialogTitle>Edit Scoring Scheme</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="habitSelect">Select Habit</Label>
-              <Select
-                value={selectedHabitId}
-                onValueChange={setSelectedHabitId}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Choose a habit" />
-                </SelectTrigger>
-                <SelectContent>
-                  {getAvailableHabits().map((habit) => (
-                    <SelectItem key={habit.id} value={habit.id}>
-                      {habit.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Weight: {newHabitWeight}</Label>
-              <Slider
-                min={1}
-                max={10}
-                step={1}
-                value={[newHabitWeight]}
-                onValueChange={(val) => setNewHabitWeight(val[0])}
-                className="mt-2"
+              <Label htmlFor="editSchemeName">Scheme Name</Label>
+              <Input
+                id="editSchemeName"
+                value={editSchemeName}
+                onChange={(e) => setEditSchemeName(e.target.value)}
+                placeholder="Enter scoring scheme name"
+                className="mt-1"
               />
             </div>
-
-            <div>
-              <Label htmlFor="scoringType">Scoring Type</Label>
-              <Select
-                value={newHabitScoringType}
-                onValueChange={setNewHabitScoringType}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="LINEAR_POSITIVE_CAPPED">
-                    Linear Positive Capped
-                  </SelectItem>
-                  <SelectItem value="LINEAR_NEGATIVE_CAPPED">
-                    Linear Negative Capped
-                  </SelectItem>
-                  <SelectItem value="THRESHOLD_TARGET">
-                    Threshold Target
-                  </SelectItem>
-                  <SelectItem value="ONE_OFF_BONUS">One-Off Bonus</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
-                onClick={() => setShowHabitDialog(false)}
+                onClick={() => setEditDialogOpen(false)}
               >
                 Cancel
               </Button>
-              <Button onClick={addHabitToScheme}>Add Habit</Button>
+              <Button
+                onClick={async () => {
+                  if (!editSchemeId || !editSchemeName.trim()) {
+                    toast.error("Please enter a scheme name");
+                    return;
+                  }
+                  try {
+                    const res = await fetch(
+                      `/api/scoring-systems/${editSchemeId}`,
+                      {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name: editSchemeName }),
+                      }
+                    );
+                    if (res.ok) {
+                      toast.success("Scoring scheme updated!");
+                      setEditDialogOpen(false);
+                      fetchData();
+                    } else {
+                      throw new Error("Failed to update scheme");
+                    }
+                  } catch (error) {
+                    toast.error("Failed to update scoring scheme");
+                  }
+                }}
+              >
+                Save
+              </Button>
             </div>
           </div>
         </DialogContent>

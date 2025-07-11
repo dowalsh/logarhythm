@@ -11,9 +11,32 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get the current user from Clerk to find their email
+    const { currentUser } = await import("@clerk/nextjs/server");
+    const user = await currentUser();
+
+    if (!user || !user.emailAddresses[0]?.emailAddress) {
+      return NextResponse.json(
+        { error: "User email not found" },
+        { status: 400 }
+      );
+    }
+
+    // Find the user in our database by email
+    const dbUser = await prisma.user.findUnique({
+      where: { email: user.emailAddresses[0].emailAddress },
+    });
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: "User not found in database" },
+        { status: 404 }
+      );
     }
 
     const { id } = await context.params;
@@ -22,7 +45,7 @@ export async function GET(
       where: { id },
     });
 
-    if (!habit || habit.userId !== userId) {
+    if (!habit || habit.userId !== dbUser.id) {
       return NextResponse.json({ error: "Not Found" }, { status: 404 });
     }
 
@@ -42,9 +65,32 @@ export async function PUT(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get the current user from Clerk to find their email
+    const { currentUser } = await import("@clerk/nextjs/server");
+    const user = await currentUser();
+
+    if (!user || !user.emailAddresses[0]?.emailAddress) {
+      return NextResponse.json(
+        { error: "User email not found" },
+        { status: 400 }
+      );
+    }
+
+    // Find the user in our database by email
+    const dbUser = await prisma.user.findUnique({
+      where: { email: user.emailAddresses[0].emailAddress },
+    });
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: "User not found in database" },
+        { status: 404 }
+      );
     }
 
     const body = await req.json();
@@ -54,7 +100,7 @@ export async function PUT(
       where: { id },
     });
 
-    if (!habit || habit.userId !== userId) {
+    if (!habit || habit.userId !== dbUser.id) {
       return NextResponse.json({ error: "Not Found" }, { status: 404 });
     }
 
@@ -83,9 +129,32 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get the current user from Clerk to find their email
+    const { currentUser } = await import("@clerk/nextjs/server");
+    const user = await currentUser();
+
+    if (!user || !user.emailAddresses[0]?.emailAddress) {
+      return NextResponse.json(
+        { error: "User email not found" },
+        { status: 400 }
+      );
+    }
+
+    // Find the user in our database by email
+    const dbUser = await prisma.user.findUnique({
+      where: { email: user.emailAddresses[0].emailAddress },
+    });
+
+    if (!dbUser) {
+      return NextResponse.json(
+        { error: "User not found in database" },
+        { status: 404 }
+      );
     }
 
     const { id } = await context.params;
@@ -94,7 +163,7 @@ export async function DELETE(
       where: { id },
     });
 
-    if (!habit || habit.userId !== userId) {
+    if (!habit || habit.userId !== dbUser.id) {
       return NextResponse.json({ error: "Not Found" }, { status: 404 });
     }
 

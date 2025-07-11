@@ -200,10 +200,12 @@ export default function HabitList() {
         open={showEditDialog}
         onOpenChange={setShowEditDialog}
         habit={editHabit}
+        onSuccess={fetchHabits}
       />
       <NewHabitDialog
         open={showNewHabitDialog}
         onOpenChange={setShowNewHabitDialog}
+        onSuccess={fetchHabits}
       />
     </>
   );

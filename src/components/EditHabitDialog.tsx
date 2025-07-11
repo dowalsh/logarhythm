@@ -31,12 +31,14 @@ interface EditHabitDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   habit: Habit | null;
+  onSuccess?: () => void;
 }
 
 export default function EditHabitDialog({
   open,
   onOpenChange,
   habit,
+  onSuccess,
 }: EditHabitDialogProps) {
   const router = useRouter();
   const [formState, setFormState] = useState({
@@ -80,6 +82,7 @@ export default function EditHabitDialog({
       toast.success("Habit updated successfully!");
       onOpenChange(false);
       router.refresh();
+      onSuccess?.();
     } catch (err) {
       console.error(err);
       toast.error("Failed to update habit");
