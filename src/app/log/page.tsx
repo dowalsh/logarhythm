@@ -22,11 +22,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-hot-toast";
 import { fetcher } from "@/lib/swr";
-import { Pencil, ChevronLeft, ChevronRight } from "lucide-react";
+import { Pencil, ChevronLeft, ChevronRight, Coins } from "lucide-react";
 import WeeklyScoreDisplay from "@/components/WeeklyScoreDisplay";
 import SegmentedProgressBar from "@/components/SegmentedProgressBar";
 import HabitScoreRow from "@/components/HabitScoreRow";
-import { getPointsPerCompletion } from "@/lib/utils";
+import { parseDateOnly, toDateString, isSameDate } from "@/lib/date";
+import { getPointsPerCompletion, getScoreMax } from "@/lib/scoredHabitUtils";
 
 // TODO: colours are broken on dark mode, fix this later
 // TODO: arrows on left and right to go back and forward a day
@@ -73,34 +74,49 @@ interface DailyLog {
 }
 
 function getWeekDates(selectedDate: string) {
-  // Normalize to local midnight
-  const date = new Date(selectedDate + "T00:00:00");
-  const weekStart = startOfWeek(date, { weekStartsOn: 1 }); // Monday as start
+  const date = parseDateOnly(selectedDate);
+  const weekStart = startOfWeek(date, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
-  return eachDayOfInterval({ start: weekStart, end: weekEnd });
+  // Return array of date-only strings
+  return eachDayOfInterval({ start: weekStart, end: weekEnd }).map(
+    toDateString
+  );
 }
 
 function WeekSelector({
   selectedDate,
   setSelectedDate,
+  weeklyLogs,
 }: {
   selectedDate: string;
   setSelectedDate: (date: string) => void;
+  weeklyLogs: DailyLog[];
 }) {
-  const weekDates = getWeekDates(selectedDate);
+  const weekDates = getWeekDates(selectedDate); // now array of strings
   const dayLabels = ["M", "T", "W", "T", "F", "S", "S"];
 
+  // Debug: print weekDates and weeklyLogs
+  console.log("[WeekSelector] weekDates:", weekDates);
+  console.log(
+    "[WeekSelector] weeklyLogs:",
+    weeklyLogs.map((l) => l.date)
+  );
+
   const handlePrevWeek = () => {
-    const prevWeek = subWeeks(new Date(selectedDate + "T00:00:00"), 1);
-    setSelectedDate(
-      format(startOfWeek(prevWeek, { weekStartsOn: 1 }), "yyyy-MM-dd")
-    );
+    const prevWeek = subWeeks(parseDateOnly(selectedDate), 1);
+    setSelectedDate(toDateString(startOfWeek(prevWeek, { weekStartsOn: 1 })));
   };
   const handleNextWeek = () => {
-    const nextWeek = addWeeks(new Date(selectedDate + "T00:00:00"), 1);
-    setSelectedDate(
-      format(startOfWeek(nextWeek, { weekStartsOn: 1 }), "yyyy-MM-dd")
-    );
+    const nextWeek = addWeeks(parseDateOnly(selectedDate), 1);
+    setSelectedDate(toDateString(startOfWeek(nextWeek, { weekStartsOn: 1 })));
+  };
+
+  // Helper to check if a log exists for a given date (now a string)
+  const hasLogForDate = (dateStr: string) => {
+    const found = weeklyLogs.some((log) => log.date === dateStr);
+    // Debug: print for each date
+    console.log(`[WeekSelector] hasLogForDate ${dateStr}:`, found);
+    return found;
   };
 
   return (
@@ -109,23 +125,27 @@ function WeekSelector({
         <ChevronLeft className="w-5 h-5" />
       </button>
       <div className="flex gap-2">
-        {weekDates.map((date, idx) => {
-          const dateStr = format(date, "yyyy-MM-dd");
+        {weekDates.map((dateStr, idx) => {
           const isSelected = dateStr === selectedDate;
+          const hasLog = hasLogForDate(dateStr);
+          let buttonClass =
+            "flex flex-col items-center justify-center w-10 h-12 rounded border transition-colors ";
+          if (isSelected) {
+            buttonClass += "bg-primary text-primary-foreground border-primary ";
+          } else if (hasLog) {
+            buttonClass += "bg-green-100 text-green-800 border-green-400 ";
+          } else {
+            buttonClass +=
+              "bg-muted text-muted-foreground border-border hover:bg-accent ";
+          }
           return (
             <button
               key={dateStr}
               onClick={() => setSelectedDate(dateStr)}
-              className={`flex flex-col items-center justify-center w-10 h-12 rounded border transition-colors
-                ${
-                  isSelected
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-muted text-muted-foreground border-border hover:bg-accent"
-                }
-              `}
+              className={buttonClass}
             >
               <span className="font-bold text-base">{dayLabels[idx]}</span>
-              <span className="text-xs mt-1">{format(date, "d-MMM")}</span>
+              <span className="text-xs mt-1">{dateStr.slice(8, 10)}</span>
             </button>
           );
         })}
@@ -138,7 +158,7 @@ function WeekSelector({
 }
 
 export default function LogPage() {
-  const today = format(startOfToday(), "yyyy-MM-dd");
+  const today = toDateString(new Date());
   const [selectedDate, setSelectedDate] = useState<string>(today);
   const [isEditing, setIsEditing] = useState<boolean>(false);
 
@@ -151,8 +171,10 @@ export default function LogPage() {
   const [loading, setLoading] = useState(false);
 
   // Get the current week's date range
-  const weekStart = startOfWeek(new Date(selectedDate));
-  const weekEnd = endOfWeek(new Date(selectedDate));
+  const weekStart = startOfWeek(parseDateOnly(selectedDate), {
+    weekStartsOn: 1,
+  });
+  const weekEnd = endOfWeek(parseDateOnly(selectedDate), { weekStartsOn: 1 });
 
   // Fetch current day's log
   const {
@@ -168,9 +190,8 @@ export default function LogPage() {
   // Fetch all logs for the current week
   const { data: weeklyLogs, error: weeklyLogError } = useSWR(
     activeScoringSystem
-      ? `/api/logs/week?start=${format(weekStart, "yyyy-MM-dd")}&end=${format(
-          weekEnd,
-          "yyyy-MM-dd"
+      ? `/api/logs/week?start=${toDateString(weekStart)}&end=${toDateString(
+          weekEnd
         )}`
       : null,
     fetcher
@@ -182,8 +203,10 @@ export default function LogPage() {
     if (logDataObj) {
       setNotes(logDataObj.notes || "");
       const filled: Record<string, number | boolean> = {};
-      for (const entry of logDataObj.habitLogs) {
-        filled[entry.habitId] = entry.completed ?? entry.value ?? "";
+      if (Array.isArray(logDataObj.habitLogs)) {
+        for (const entry of logDataObj.habitLogs) {
+          filled[entry.habitId] = entry.completed ?? entry.value ?? "";
+        }
       }
       setLogData(filled);
       setIsEditing(false);
@@ -213,7 +236,13 @@ export default function LogPage() {
 
       if (!res.ok) throw new Error("Failed to submit log");
       toast.success("Log saved");
-      mutate();
+      mutate(); // refresh daily log
+      // Also refresh weekly logs
+      if (activeScoringSystem) {
+        const weekStartStr = toDateString(weekStart);
+        const weekEndStr = toDateString(weekEnd);
+        mutate(`/api/logs/week?start=${weekStartStr}&end=${weekEndStr}`);
+      }
       setIsEditing(false);
     } catch (err) {
       toast.error("Error saving log");
@@ -232,11 +261,58 @@ export default function LogPage() {
   const hasExistingLog = !!existingLog;
   const isLoading = !scoringSystems && !scoringError;
 
-  // Calculate weekly completion counts for each habit
-  const getWeeklyCompletionCount = (habitId: string) => {
-    if (!weeklyLogs?.logs) return 0;
+  // Helper: create a virtual DailyLog for the selected day using current logData
+  function getVirtualDailyLog(): DailyLog | null {
+    if (!activeScoringSystem) return null;
+    return {
+      id: existingLog?.log?.id || existingLog?.id || "virtual",
+      userId: existingLog?.log?.userId || existingLog?.userId || "virtual",
+      scoringSystemId: activeScoringSystem.id,
+      date: selectedDate,
+      notes: notes,
+      habitLogs: activeHabits.map((scoredHabit) => {
+        const val = logData[scoredHabit.habitId];
+        return {
+          id: "virtual-" + scoredHabit.habitId,
+          dailyLogId: existingLog?.log?.id || existingLog?.id || "virtual",
+          habitId: scoredHabit.habitId,
+          value: typeof val === "number" ? val : undefined,
+          completed: typeof val === "boolean" ? val : undefined,
+        };
+      }),
+    };
+  }
 
-    return weeklyLogs.logs.reduce((count: number, dayLog: DailyLog) => {
+  // Helper: get weekly logs, but override selected day with virtual logData
+  function getPatchedWeeklyLogs(): DailyLog[] {
+    if (!weeklyLogs?.logs) return [];
+    const virtualLog = getVirtualDailyLog();
+    // Replace the log for selectedDate with the virtual one
+    let replaced = false;
+    const patched = weeklyLogs.logs.map((log: DailyLog) => {
+      if (log.date === selectedDate && virtualLog) {
+        replaced = true;
+        return virtualLog;
+      }
+      return log;
+    });
+    // If no log existed for selectedDate, add the virtual one
+    if (!replaced && virtualLog) {
+      patched.push(virtualLog);
+    }
+    return patched;
+  }
+
+  const getWeeklyProgressSegments = (scoredHabit: ScoredHabit) => {
+    const weeklyCompletions = getWeeklyCompletionCount(scoredHabit.habitId);
+    const target = scoredHabit.targetFrequency || 1;
+    return Math.min(weeklyCompletions, target);
+  };
+
+  const getWeeklyCompletionCount = (habitId: string) => {
+    const logs = getPatchedWeeklyLogs();
+    if (!logs) return 0;
+    return logs.reduce((count: number, dayLog: DailyLog) => {
       const habitLog = dayLog.habitLogs?.find(
         (hl: HabitLog) => hl.habitId === habitId
       );
@@ -254,28 +330,21 @@ export default function LogPage() {
     return Math.round(completionRatio * scoredHabit.weight);
   };
 
-  // Get weekly progress segments for display
-  const getWeeklyProgressSegments = (scoredHabit: ScoredHabit) => {
-    const weeklyCompletions = getWeeklyCompletionCount(scoredHabit.habitId);
-    const target = scoredHabit.targetFrequency || 1;
-
-    return Math.min(weeklyCompletions, target);
-  };
-
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
-      {/* Weekly Score Display */}
+      {/* Weekly Score Display
       {activeHabits.length > 0 && (
         <WeeklyScoreDisplay
           scoredHabits={activeHabits}
           weeklyLogs={weeklyLogs?.logs || []}
         />
-      )}
+      )} */}
 
       {/* Week Selector */}
       <WeekSelector
         selectedDate={selectedDate}
         setSelectedDate={setSelectedDate}
+        weeklyLogs={weeklyLogs?.logs || []}
       />
 
       {/* Daily Log Form */}
@@ -344,11 +413,20 @@ export default function LogPage() {
         {/* Compact Table Format */}
         {activeHabits.length > 0 && (
           <div className="space-y-3 mb-6">
-            {activeHabits.map((scoredHabit) => {
-              const weeklyScore = calculateWeeklyHabitScore(scoredHabit);
-              const weeklyProgress = getWeeklyProgressSegments(scoredHabit);
+            {activeHabits.map((scoredHabit: ScoredHabit) => {
+              const weeklyCompletions = getWeeklyCompletionCount(
+                scoredHabit.habitId
+              );
               const target = scoredHabit.targetFrequency || 1;
-              const pointsPerCompletion = getPointsPerCompletion(scoredHabit);
+              const scoreMax = getScoreMax(scoredHabit, activeHabits);
+              // Calculate weeklyScore as a percentage of completions (capped at target) times scoreMax
+              const completionRatio = Math.min(weeklyCompletions / target, 1);
+              const weeklyScore = completionRatio * scoreMax;
+              const weeklyProgress = getWeeklyProgressSegments(scoredHabit);
+              const pointsPerCompletion = getPointsPerCompletion(
+                scoredHabit,
+                activeHabits
+              );
 
               return (
                 <div key={scoredHabit.habitId} className="flex items-center">
@@ -359,7 +437,7 @@ export default function LogPage() {
                       progressCurrent={weeklyProgress}
                       progressMax={target}
                       score={weeklyScore}
-                      scoreMax={scoredHabit.weight}
+                      scoreMax={scoreMax}
                     />
                   </div>
                   <div className="ml-4">
@@ -378,6 +456,73 @@ export default function LogPage() {
                 </div>
               );
             })}
+            {/* TOTAL Bar */}
+            <div className="border-t pt-3 mt-4">
+              <div className="grid grid-cols-12 gap-2 items-center text-sm font-semibold">
+                <div className="col-span-3 text-right">TOTAL</div>
+                <div className="col-span-6">
+                  {(() => {
+                    // Calculate the current total score using patched weekly logs (live with checkbox changes)
+                    const patchedLogs = getPatchedWeeklyLogs();
+                    const totalScore = activeHabits.reduce((sum, habit) => {
+                      const completions = patchedLogs.reduce(
+                        (count, dayLog) => {
+                          const habitLog = dayLog.habitLogs?.find(
+                            (hl) => hl.habitId === habit.habitId
+                          );
+                          return count + (habitLog?.completed ? 1 : 0);
+                        },
+                        0
+                      );
+                      const target = habit.targetFrequency || 1;
+                      const scoreMax = getScoreMax(habit, activeHabits);
+                      const completionRatio = Math.min(completions / target, 1);
+                      const habitScore = completionRatio * scoreMax;
+                      return sum + habitScore;
+                    }, 0);
+                    const maxScore = 100;
+                    const percent =
+                      maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
+                    return (
+                      <div className="relative w-full h-4 rounded-sm overflow-hidden bg-gray-200 dark:bg-gray-700">
+                        <div
+                          className="absolute left-0 top-0 h-4 bg-yellow-500 rounded-sm transition-all duration-300"
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div className="col-span-3 text-right">
+                  {(() => {
+                    const patchedLogs = getPatchedWeeklyLogs();
+                    const totalScore = activeHabits.reduce((sum, habit) => {
+                      const completions = patchedLogs.reduce(
+                        (count, dayLog) => {
+                          const habitLog = dayLog.habitLogs?.find(
+                            (hl) => hl.habitId === habit.habitId
+                          );
+                          return count + (habitLog?.completed ? 1 : 0);
+                        },
+                        0
+                      );
+                      const target = habit.targetFrequency || 1;
+                      const scoreMax = getScoreMax(habit, activeHabits);
+                      const completionRatio = Math.min(completions / target, 1);
+                      const habitScore = completionRatio * scoreMax;
+                      return sum + habitScore;
+                    }, 0);
+                    const maxScore = 100;
+                    return (
+                      <span>
+                        {Math.round(totalScore)}/{maxScore}
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+            {/* END TOTAL Bar */}
           </div>
         )}
 

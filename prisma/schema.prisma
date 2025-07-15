@@ -83,7 +83,7 @@ model DailyLog {
   scoringSystemId  String
   user             User           @relation(fields: [userId], references: [id])
   scoringSystem    ScoringSystem  @relation(fields: [scoringSystemId], references: [id])
-  date             DateTime
+  date             String   // 'YYYY-MM-DD'
   notes            String?
   createdAt        DateTime       @default(now())
 
@@ -109,7 +109,7 @@ model Modifier {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-  weekStart DateTime
+  weekStart String   // 'YYYY-MM-DD'
   label     String
   value     Float
   createdAt DateTime @default(now())
@@ -119,7 +119,7 @@ model WeeklyScore {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id])
-  weekStart   DateTime
+  weekStart   String   // 'YYYY-MM-DD'
   habitScore  Float
   modifierSum Float
   finalScore  Float

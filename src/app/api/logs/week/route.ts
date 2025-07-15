@@ -58,8 +58,8 @@ export async function GET(req: NextRequest) {
         userId: dbUser.id,
         scoringSystemId: activeScoringSystem.id,
         date: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
+          gte: startDate,
+          lte: endDate,
         },
       },
       include: {

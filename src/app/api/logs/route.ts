@@ -53,12 +53,13 @@ export async function POST(req: NextRequest) {
       activeScoringSystemId = activeSystem.id;
     }
 
-    const parsedDate = new Date(date);
+    // Use the date string directly
+    const dateString = typeof date === "string" ? date.slice(0, 10) : "";
 
     await prisma.$transaction(async (tx) => {
       const dailyLog = await prisma.dailyLog.upsert({
         where: {
-          userId_date: { userId: dbUser.id, date: parsedDate },
+          userId_date: { userId: dbUser.id, date: dateString },
         },
         update: {
           notes: notes,
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
         create: {
           userId: dbUser.id,
           scoringSystemId: activeScoringSystemId,
-          date: parsedDate,
+          date: dateString,
           notes: notes,
         },
       });
@@ -128,17 +129,71 @@ export async function GET(req: Request) {
 
   try {
     const { searchParams } = new URL(req.url);
+    const startParam = searchParams.get("start");
+    const endParam = searchParams.get("end");
     const dateParam = searchParams.get("date");
 
+    // Handle week range query
+    if (startParam && endParam) {
+      // Force conversion to 'YYYY-MM-DD' string (query params are always string or undefined)
+      const startString = String(startParam).slice(0, 10);
+      const endString = String(endParam).slice(0, 10);
+
+      console.log(
+        "[WEEK QUERY] userId:",
+        dbUser.id,
+        "start:",
+        startString,
+        "end:",
+        endString
+      );
+      console.log(
+        "[WEEK QUERY TYPES]",
+        typeof startString,
+        startString,
+        typeof endString,
+        endString
+      );
+
+      try {
+        const logs = await prisma.dailyLog.findMany({
+          where: {
+            userId: dbUser.id,
+            date: {
+              gte: startString,
+              lte: endString,
+            },
+          },
+          include: {
+            habitLogs: {
+              include: {
+                habit: true,
+              },
+            },
+          },
+          orderBy: { date: "asc" },
+        });
+
+        return NextResponse.json({ logs });
+      } catch (err) {
+        console.error("[WEEK QUERY ERROR]", err);
+        return NextResponse.json(
+          { error: "Week query failed", details: String(err) },
+          { status: 500 }
+        );
+      }
+    }
+
     if (dateParam) {
-      // Get a specific day's log
-      const parsedDate = new Date(dateParam);
+      // Use the date string directly
+      const dateString =
+        typeof dateParam === "string" ? dateParam.slice(0, 10) : "";
 
       const dailyLog = await prisma.dailyLog.findUnique({
         where: {
           userId_date: {
             userId: dbUser.id,
-            date: parsedDate,
+            date: dateString,
           },
         },
         include: {
