@@ -94,15 +94,12 @@ export default function WeeklyScoreDisplay({
                 key={scoredHabit.habitId}
                 className="grid grid-cols-12 gap-2 items-center text-sm"
               >
-                <div className="col-span-3 flex items-center gap-2">
+                <div className="col-span-4 flex items-center gap-2">
                   <span className="font-medium truncate">
                     {scoredHabit.habit.name}
                   </span>
                 </div>
-                <div className="col-span-2 text-center">
-                  Weight: {scoredHabit.weight}
-                </div>
-                <div className="col-span-2 text-center">
+                <div className="col-span-3 text-center">
                   {pointsPerUnit.toFixed(1)} pts ea.
                 </div>
                 <div className="col-span-3">
@@ -128,7 +125,19 @@ export default function WeeklyScoreDisplay({
 
           <div className="border-t pt-3 mt-4">
             <div className="grid grid-cols-12 gap-2 items-center text-sm font-semibold">
-              <div className="col-span-9 text-right">TOTAL</div>
+              <div className="col-span-3 text-right">TOTAL</div>
+              <div className="col-span-6">
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-sm h-4">
+                  <div
+                    className="bg-yellow-500 h-4 rounded-sm transition-all duration-300"
+                    style={{
+                      width: `${
+                        maxScore > 0 ? (totalScore / maxScore) * 100 : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
               <div className="col-span-3 text-right">
                 {totalScore.toFixed(0)}/{maxScore}
               </div>

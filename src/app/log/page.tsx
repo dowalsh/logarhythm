@@ -253,15 +253,12 @@ export default function LogPage() {
                   key={scoredHabit.habitId}
                   className="grid grid-cols-12 gap-2 items-center text-sm border-b pb-3"
                 >
-                  <div className="col-span-3 flex items-center gap-2">
+                  <div className="col-span-4 flex items-center gap-2">
                     <span className="font-medium truncate">
                       {scoredHabit.habit.name}
                     </span>
                   </div>
-                  <div className="col-span-2 text-center">
-                    Weight: {scoredHabit.weight}
-                  </div>
-                  <div className="col-span-2 text-center">
+                  <div className="col-span-3 text-center">
                     {pointsPerUnit.toFixed(1)} pts ea.
                   </div>
                   <div className="col-span-3">
@@ -278,10 +275,10 @@ export default function LogPage() {
                       ))}
                     </div>
                   </div>
-                  <div className="col-span-2 text-right font-medium">
+                  <div className="col-span-1 text-right font-medium">
                     {score.toFixed(0)}/{scoredHabit.weight}
                   </div>
-                  <div className="col-span-12 mt-2">
+                  <div className="col-span-1 flex justify-end">
                     {scoredHabit.habit.habitType === "BOOLEAN" ? (
                       <Checkbox
                         checked={!!logData[scoredHabit.habitId]}
@@ -297,7 +294,7 @@ export default function LogPage() {
                     ) : (
                       <Input
                         type="number"
-                        className="w-24"
+                        className="w-20"
                         value={logData[scoredHabit.habitId]?.toString() ?? ""}
                         onChange={(e) =>
                           isEditing &&
