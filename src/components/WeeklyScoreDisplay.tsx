@@ -89,7 +89,10 @@ export default function WeeklyScoreDisplay({
             const score = calculateWeeklyHabitScore(scoredHabit);
             const progressSegments = getWeeklyProgressSegments(scoredHabit);
             const target = scoredHabit.targetFrequency || 1;
-            const pointsPerCompletion = getPointsPerCompletion(scoredHabit);
+            const pointsPerCompletion = getPointsPerCompletion(
+              scoredHabit,
+              scoredHabits
+            );
 
             return (
               <HabitScoreRow
