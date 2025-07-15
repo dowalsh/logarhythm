@@ -1,0 +1,140 @@
+TODO.txt
+========
+
+HABIT TRACKING APP - TODO LIST
+==============================
+
+move edit button in scoring scheme tab so that name edit is on click of the name itself, or during edit of active scheme.
+
+
+
+
+
+
+COMPLETED FEATURES ✅
+-------------------
+- Basic habit CRUD operations
+- Scoring system with weights and scoring types
+- Weight-based sorting for ScoredHabits
+- Dialog-based habit creation/editing
+- Scoring scheme management (create, edit, delete, activate)
+- Authentication with Clerk
+- Email-based user lookup
+- targetFrequency field for habits
+- Table-like scoring scheme editor with inline editing
+- Toggle edit mode for scoring schemes
+
+CURRENT PRIORITIES 🔥
+-------------------
+1. Daily Logging Interface
+   - Create daily log entry form
+   - Allow users to log habit completion for the day
+   - Show active scoring scheme habits in log form
+   - Validate input based on habit type (boolean/numeric)
+
+2. Scoring Calculation
+   - Implement scoring algorithms for different scoring types
+   - Calculate daily scores based on logged habits
+   - Show score breakdown and total for the day
+   - Store calculated scores in database
+
+3. Dashboard/Overview
+   - Create main dashboard showing today's habits
+   - Display current score and progress
+   - Show recent activity and trends
+   - Quick access to log today's habits
+
+MEDIUM PRIORITY 📋
+-----------------
+4. Weekly Scoring
+   - Aggregate daily scores into weekly scores
+   - Show weekly progress and trends
+   - Weekly score history and charts
+   - Weekly goal setting and tracking
+
+5. Data Visualization
+   - Charts showing habit completion over time
+   - Score trends and patterns
+   - Habit performance analytics
+   - Progress visualization
+
+6. Habit Templates
+   - Pre-built habit templates for common goals
+   - Quick setup for popular habit combinations
+   - Template sharing between users
+
+7. Notifications & Reminders
+   - Daily reminder notifications
+   - Streak tracking and motivation
+   - Achievement notifications
+   - Custom reminder settings
+
+LOWER PRIORITY 🔽
+----------------
+8. Social Features
+   - Share progress with friends
+   - Habit challenges and competitions
+   - Community habit suggestions
+   - Accountability partners
+
+9. Advanced Analytics
+   - Detailed habit analysis
+   - Correlation between habits
+   - Optimal habit timing suggestions
+   - Personalized insights
+
+10. Export/Import
+    - Export habit data
+    - Import from other habit tracking apps
+    - Data backup and restore
+    - CSV/JSON export options
+
+TECHNICAL IMPROVEMENTS 🔧
+-----------------------
+- Add comprehensive error handling
+- Implement proper loading states
+- Add unit tests for core functionality
+- Performance optimization for large datasets
+- Mobile responsiveness improvements
+- Accessibility improvements (ARIA labels, keyboard navigation)
+- Add proper TypeScript types throughout
+- Implement proper form validation
+- Add confirmation dialogs for destructive actions
+- Implement proper caching strategies
+
+UI/UX IMPROVEMENTS 🎨
+-------------------
+- Improve visual design consistency
+- Add animations and transitions
+- Better color scheme and theming
+- Improve mobile layout and touch interactions
+- Add empty states and onboarding
+- Improve accessibility
+- Add keyboard shortcuts
+- Better responsive design
+
+BUG FIXES 🐛
+-----------
+- Test and fix any edge cases in scoring calculations
+- Ensure proper error handling for API failures
+- Fix any authentication edge cases
+- Test with different data scenarios
+
+FUTURE ENHANCEMENTS 🚀
+---------------------
+- AI-powered habit suggestions
+- Integration with health apps (Apple Health, Google Fit)
+- Calendar integration
+- Voice logging capabilities
+- Advanced habit chaining
+- Habit difficulty adjustment over time
+- Seasonal habit variations
+- Multi-language support
+
+NOTES 📝
+-------
+- Keep the app simple and focused on core functionality
+- Prioritize user experience over feature quantity
+- Test thoroughly before releasing new features
+- Consider user feedback for feature prioritization
+- Maintain code quality and documentation 

@@ -35,8 +35,22 @@ export async function POST(req: NextRequest) {
 
     const { date, notes, logs, scoringSystemId } = await req.json();
 
-    if (!date || !Array.isArray(logs) || !scoringSystemId) {
-      return new NextResponse("Invalid payload", { status: 400 });
+    if (!date || !Array.isArray(logs)) {
+      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    }
+
+    let activeScoringSystemId = scoringSystemId;
+    if (!activeScoringSystemId) {
+      const activeSystem = await prisma.scoringSystem.findFirst({
+        where: { userId: dbUser.id, isActive: true },
+      });
+      if (!activeSystem) {
+        return NextResponse.json(
+          { error: "No active scoring system found" },
+          { status: 400 }
+        );
+      }
+      activeScoringSystemId = activeSystem.id;
     }
 
     const parsedDate = new Date(date);
@@ -46,12 +60,15 @@ export async function POST(req: NextRequest) {
         where: {
           userId_date: { userId: dbUser.id, date: parsedDate },
         },
-        update: { notes, scoringSystemId },
+        update: {
+          notes: notes,
+          scoringSystemId: activeScoringSystemId,
+        },
         create: {
           userId: dbUser.id,
-          scoringSystemId,
+          scoringSystemId: activeScoringSystemId,
           date: parsedDate,
-          notes,
+          notes: notes,
         },
       });
       // Step 2: Upsert HabitLogs for that day
@@ -134,7 +151,7 @@ export async function GET(req: Request) {
       });
 
       if (!dailyLog) {
-        return new NextResponse("Not found", { status: 404 });
+        return NextResponse.json({ log: null }, { status: 200 });
       }
 
       return NextResponse.json(dailyLog);
