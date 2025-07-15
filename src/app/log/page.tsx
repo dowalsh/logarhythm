@@ -3,7 +3,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { format, subDays, startOfToday } from "date-fns";
+import {
+  format,
+  subDays,
+  startOfToday,
+  startOfWeek,
+  endOfWeek,
+  eachDayOfInterval,
+  addWeeks,
+  subWeeks,
+  isSameDay,
+  isSameWeek,
+} from "date-fns";
 import useSWR from "swr";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,8 +22,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-hot-toast";
 import { fetcher } from "@/lib/swr";
-import { Pencil } from "lucide-react";
+import { Pencil, ChevronLeft, ChevronRight } from "lucide-react";
 import WeeklyScoreDisplay from "@/components/WeeklyScoreDisplay";
+import SegmentedProgressBar from "@/components/SegmentedProgressBar";
+import HabitScoreRow from "@/components/HabitScoreRow";
+import { getPointsPerCompletion } from "@/lib/utils";
 
 // TODO: colours are broken on dark mode, fix this later
 // TODO: arrows on left and right to go back and forward a day
@@ -41,6 +55,88 @@ interface ScoringSystem {
   habits: ScoredHabit[];
 }
 
+interface HabitLog {
+  id: string;
+  dailyLogId: string;
+  habitId: string;
+  value?: number;
+  completed?: boolean;
+}
+
+interface DailyLog {
+  id: string;
+  userId: string;
+  scoringSystemId: string;
+  date: string;
+  notes?: string;
+  habitLogs: HabitLog[];
+}
+
+function getWeekDates(selectedDate: string) {
+  // Normalize to local midnight
+  const date = new Date(selectedDate + "T00:00:00");
+  const weekStart = startOfWeek(date, { weekStartsOn: 1 }); // Monday as start
+  const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
+  return eachDayOfInterval({ start: weekStart, end: weekEnd });
+}
+
+function WeekSelector({
+  selectedDate,
+  setSelectedDate,
+}: {
+  selectedDate: string;
+  setSelectedDate: (date: string) => void;
+}) {
+  const weekDates = getWeekDates(selectedDate);
+  const dayLabels = ["M", "T", "W", "T", "F", "S", "S"];
+
+  const handlePrevWeek = () => {
+    const prevWeek = subWeeks(new Date(selectedDate + "T00:00:00"), 1);
+    setSelectedDate(
+      format(startOfWeek(prevWeek, { weekStartsOn: 1 }), "yyyy-MM-dd")
+    );
+  };
+  const handleNextWeek = () => {
+    const nextWeek = addWeeks(new Date(selectedDate + "T00:00:00"), 1);
+    setSelectedDate(
+      format(startOfWeek(nextWeek, { weekStartsOn: 1 }), "yyyy-MM-dd")
+    );
+  };
+
+  return (
+    <div className="flex items-center justify-center gap-2 my-6">
+      <button onClick={handlePrevWeek} className="p-2 rounded hover:bg-muted">
+        <ChevronLeft className="w-5 h-5" />
+      </button>
+      <div className="flex gap-2">
+        {weekDates.map((date, idx) => {
+          const dateStr = format(date, "yyyy-MM-dd");
+          const isSelected = dateStr === selectedDate;
+          return (
+            <button
+              key={dateStr}
+              onClick={() => setSelectedDate(dateStr)}
+              className={`flex flex-col items-center justify-center w-10 h-12 rounded border transition-colors
+                ${
+                  isSelected
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-muted text-muted-foreground border-border hover:bg-accent"
+                }
+              `}
+            >
+              <span className="font-bold text-base">{dayLabels[idx]}</span>
+              <span className="text-xs mt-1">{format(date, "d-MMM")}</span>
+            </button>
+          );
+        })}
+      </div>
+      <button onClick={handleNextWeek} className="p-2 rounded hover:bg-muted">
+        <ChevronRight className="w-5 h-5" />
+      </button>
+    </div>
+  );
+}
+
 export default function LogPage() {
   const today = format(startOfToday(), "yyyy-MM-dd");
   const [selectedDate, setSelectedDate] = useState<string>(today);
@@ -54,6 +150,11 @@ export default function LogPage() {
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Get the current week's date range
+  const weekStart = startOfWeek(new Date(selectedDate));
+  const weekEnd = endOfWeek(new Date(selectedDate));
+
+  // Fetch current day's log
   const {
     data: existingLog,
     mutate,
@@ -63,6 +164,17 @@ export default function LogPage() {
   // Get active scoring system and its habits
   const activeScoringSystem = scoringSystems?.find((system) => system.isActive);
   const activeHabits = activeScoringSystem?.habits || [];
+
+  // Fetch all logs for the current week
+  const { data: weeklyLogs, error: weeklyLogError } = useSWR(
+    activeScoringSystem
+      ? `/api/logs/week?start=${format(weekStart, "yyyy-MM-dd")}&end=${format(
+          weekEnd,
+          "yyyy-MM-dd"
+        )}`
+      : null,
+    fetcher
+  );
 
   useEffect(() => {
     const logDataObj =
@@ -120,46 +232,34 @@ export default function LogPage() {
   const hasExistingLog = !!existingLog;
   const isLoading = !scoringSystems && !scoringError;
 
-  const calculateHabitScore = (scoredHabit: ScoredHabit) => {
-    const value = logData[scoredHabit.habitId];
-    if (value === undefined || value === null) return 0;
+  // Calculate weekly completion counts for each habit
+  const getWeeklyCompletionCount = (habitId: string) => {
+    if (!weeklyLogs?.logs) return 0;
 
-    const target = scoredHabit.targetFrequency || 1;
-
-    switch (scoredHabit.scoringType) {
-      case "LINEAR_POSITIVE_CAPPED":
-        const completion =
-          typeof value === "boolean" ? (value ? 1 : 0) : Number(value);
-        return Math.min(
-          (completion / target) * scoredHabit.weight,
-          scoredHabit.weight
-        );
-
-      case "THRESHOLD_TARGET":
-        const thresholdMet =
-          typeof value === "boolean" ? value : Number(value) >= target;
-        return thresholdMet ? scoredHabit.weight : 0;
-
-      case "ONE_OFF_BONUS":
-        const completed =
-          typeof value === "boolean" ? value : Number(value) > 0;
-        return completed ? scoredHabit.weight : 0;
-
-      default:
-        return 0;
-    }
+    return weeklyLogs.logs.reduce((count: number, dayLog: DailyLog) => {
+      const habitLog = dayLog.habitLogs?.find(
+        (hl: HabitLog) => hl.habitId === habitId
+      );
+      return count + (habitLog?.completed ? 1 : 0);
+    }, 0);
   };
 
-  const getProgressSegments = (scoredHabit: ScoredHabit) => {
-    const value = logData[scoredHabit.habitId];
+  // Calculate weekly score for a habit
+  const calculateWeeklyHabitScore = (scoredHabit: ScoredHabit) => {
+    const weeklyCompletions = getWeeklyCompletionCount(scoredHabit.habitId);
     const target = scoredHabit.targetFrequency || 1;
 
-    if (scoredHabit.habit.habitType === "BOOLEAN") {
-      return typeof value === "boolean" && value ? 1 : 0;
-    } else {
-      const numericValue = typeof value === "number" ? value : 0;
-      return Math.min(Math.floor(numericValue), target);
-    }
+    // Linear scoring relative to target, capped at target
+    const completionRatio = Math.min(weeklyCompletions / target, 1);
+    return Math.round(completionRatio * scoredHabit.weight);
+  };
+
+  // Get weekly progress segments for display
+  const getWeeklyProgressSegments = (scoredHabit: ScoredHabit) => {
+    const weeklyCompletions = getWeeklyCompletionCount(scoredHabit.habitId);
+    const target = scoredHabit.targetFrequency || 1;
+
+    return Math.min(weeklyCompletions, target);
   };
 
   return (
@@ -168,9 +268,15 @@ export default function LogPage() {
       {activeHabits.length > 0 && (
         <WeeklyScoreDisplay
           scoredHabits={activeHabits}
-          dailyLogData={logData}
+          weeklyLogs={weeklyLogs?.logs || []}
         />
       )}
+
+      {/* Week Selector */}
+      <WeekSelector
+        selectedDate={selectedDate}
+        setSelectedDate={setSelectedDate}
+      />
 
       {/* Daily Log Form */}
       <div className="rounded-md border shadow-sm p-6">
@@ -203,19 +309,15 @@ export default function LogPage() {
           </div>
         )}
 
-        <label className="block text-sm font-medium mb-2">Select Date</label>
-        <select
-          className="border px-3 py-2 rounded-md bg-background mb-6"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-        >
-          {recentDates.map((date) => (
-            <option key={date} value={date}>
-              {format(new Date(date + "T00:00:00"), "EEEE, MMMM d")}
-              {date === today ? " (Today)" : ""}
-            </option>
-          ))}
-        </select>
+        {weeklyLogError && (
+          <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md mb-4">
+            <p className="text-sm text-destructive">
+              Error loading weekly data. Please try refreshing the page.
+            </p>
+          </div>
+        )}
+
+        {/* Removed select date dropdown */}
 
         {isLoading && (
           <div className="flex items-center justify-center py-8">
@@ -243,71 +345,35 @@ export default function LogPage() {
         {activeHabits.length > 0 && (
           <div className="space-y-3 mb-6">
             {activeHabits.map((scoredHabit) => {
-              const score = calculateHabitScore(scoredHabit);
-              const progressSegments = getProgressSegments(scoredHabit);
+              const weeklyScore = calculateWeeklyHabitScore(scoredHabit);
+              const weeklyProgress = getWeeklyProgressSegments(scoredHabit);
               const target = scoredHabit.targetFrequency || 1;
-              const pointsPerUnit = scoredHabit.weight / target;
+              const pointsPerCompletion = getPointsPerCompletion(scoredHabit);
 
               return (
-                <div
-                  key={scoredHabit.habitId}
-                  className="grid grid-cols-12 gap-2 items-center text-sm border-b pb-3"
-                >
-                  <div className="col-span-4 flex items-center gap-2">
-                    <span className="font-medium truncate">
-                      {scoredHabit.habit.name}
-                    </span>
+                <div key={scoredHabit.habitId} className="flex items-center">
+                  <div className="flex-1">
+                    <HabitScoreRow
+                      habitName={scoredHabit.habit.name}
+                      pointsPerCompletion={pointsPerCompletion}
+                      progressCurrent={weeklyProgress}
+                      progressMax={target}
+                      score={weeklyScore}
+                      scoreMax={scoredHabit.weight}
+                    />
                   </div>
-                  <div className="col-span-3 text-center">
-                    {pointsPerUnit.toFixed(1)} pts ea.
-                  </div>
-                  <div className="col-span-3">
-                    <div className="flex gap-1 h-4">
-                      {Array.from({ length: target }, (_, i) => (
-                        <div
-                          key={i}
-                          className={`flex-1 rounded-sm ${
-                            i < progressSegments
-                              ? "bg-green-500"
-                              : "bg-gray-200 dark:bg-gray-700"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <div className="col-span-1 text-right font-medium">
-                    {score.toFixed(0)}/{scoredHabit.weight}
-                  </div>
-                  <div className="col-span-1 flex justify-end">
-                    {scoredHabit.habit.habitType === "BOOLEAN" ? (
-                      <Checkbox
-                        checked={!!logData[scoredHabit.habitId]}
-                        onCheckedChange={(checked) =>
-                          isEditing &&
-                          setLogData((d) => ({
-                            ...d,
-                            [scoredHabit.habitId]: !!checked,
-                          }))
-                        }
-                        disabled={!isEditing}
-                      />
-                    ) : (
-                      <Input
-                        type="number"
-                        className="w-20"
-                        value={logData[scoredHabit.habitId]?.toString() ?? ""}
-                        onChange={(e) =>
-                          isEditing &&
-                          setLogData((d) => ({
-                            ...d,
-                            [scoredHabit.habitId]:
-                              parseFloat(e.target.value) || 0,
-                          }))
-                        }
-                        disabled={!isEditing}
-                        placeholder="0"
-                      />
-                    )}
+                  <div className="ml-4">
+                    <Checkbox
+                      checked={!!logData[scoredHabit.habitId]}
+                      onCheckedChange={(checked) =>
+                        isEditing &&
+                        setLogData((d) => ({
+                          ...d,
+                          [scoredHabit.habitId]: !!checked,
+                        }))
+                      }
+                      disabled={!isEditing}
+                    />
                   </div>
                 </div>
               );
