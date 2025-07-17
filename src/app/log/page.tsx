@@ -133,7 +133,7 @@ function WeekSelector({
           let buttonClass =
             "flex flex-col items-center justify-center w-8 h-10 sm:w-10 sm:h-12 rounded border transition-colors";
           if (isSelected) {
-            buttonClass += "bg-primary text-primary-foreground border-primary ";
+            buttonClass += "bg-primary text-primary border-primary ";
           } else if (hasLog) {
             buttonClass += "bg-green-100 text-green-800 border-green-400 ";
           } else {
@@ -430,12 +430,8 @@ export default function LogPage() {
               const maxScoreAmongHabits = Math.max(
                 ...activeHabits.map((habit) => getScoreMax(habit, activeHabits))
               );
-              // Define responsive max width for the progress bar (in pixels)
-              // Mobile: 80px, Desktop: 120
-              const maxProgressBarWidth =
-                typeof window !== "undefined" && window.innerWidth >= 640
-                  ? 120
-                  : 80;
+              // Use fixed 120px width since mobile now uses two-row layout
+              const maxProgressBarWidth = 120;
               return activeHabits.map((scoredHabit: ScoredHabit) => {
                 const weeklyCompletions = getWeeklyCompletionCount(
                   scoredHabit.habitId
@@ -451,7 +447,7 @@ export default function LogPage() {
                 );
                 // Calculate proportional width based on this habit's max score
                 const proportionalWidth =
-                  (scoreMax / maxScoreAmongHabits) * 120; // CSS will handle responsive max-width
+                  (scoreMax / maxScoreAmongHabits) * maxProgressBarWidth;
                 return (
                   <div
                     key={scoredHabit.habitId}
