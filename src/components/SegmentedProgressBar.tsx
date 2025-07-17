@@ -16,11 +16,11 @@ export default function SegmentedProgressBar({
   height = "h-4",
 }: SegmentedProgressBarProps) {
   return (
-    <div className={`flex gap-1 ${height}`}>
+    <div className={`flex gap-0.5 ${height}`}>
       {Array.from({ length: max }, (_, i) => (
         <div
           key={i}
-          className={`flex-1 rounded-sm ${
+          className={`flex-1  rounded-xs ${
             i < current ? filledClassName : emptyClassName
           }`}
         />

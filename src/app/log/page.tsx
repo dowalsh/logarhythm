@@ -23,8 +23,6 @@ import { Button } from "@/components/ui/button";
 import { toast } from "react-hot-toast";
 import { fetcher } from "@/lib/swr";
 import { Pencil, ChevronLeft, ChevronRight, Calendar } from "lucide-react";
-import WeeklyScoreDisplay from "@/components/WeeklyScoreDisplay";
-import SegmentedProgressBar from "@/components/SegmentedProgressBar";
 import HabitScoreRow from "@/components/HabitScoreRow";
 import { parseDateOnly, toDateString, isSameDate } from "@/lib/date";
 import { getPointsPerCompletion, getScoreMax } from "@/lib/scoredHabitUtils";
@@ -427,53 +425,67 @@ export default function LogPage() {
         {/* Compact Table Format */}
         {activeHabits.length > 0 && (
           <div className="space-y-3 mb-6">
-            {activeHabits.map((scoredHabit: ScoredHabit) => {
-              const weeklyCompletions = getWeeklyCompletionCount(
-                scoredHabit.habitId
+            {(() => {
+              // Calculate the maximum score among all habits to determine the baseline width
+              const maxScoreAmongHabits = Math.max(
+                ...activeHabits.map((habit) => getScoreMax(habit, activeHabits))
               );
-              const target = scoredHabit.targetFrequency || 1;
-              const scoreMax = getScoreMax(scoredHabit, activeHabits);
-              // Calculate weeklyScore as a percentage of completions (capped at target) times scoreMax
-              const completionRatio = Math.min(weeklyCompletions / target, 1);
-              const weeklyScore = completionRatio * scoreMax;
-              const weeklyProgress = getWeeklyProgressSegments(scoredHabit);
-              const pointsPerCompletion = getPointsPerCompletion(
-                scoredHabit,
-                activeHabits
-              );
-
-              return (
-                <div
-                  key={scoredHabit.habitId}
-                  className="flex items-center gap-3"
-                >
-                  <div className="flex-1 min-w-0">
-                    <HabitScoreRow
-                      habitName={scoredHabit.habit.name}
-                      pointsPerCompletion={pointsPerCompletion}
-                      progressCurrent={weeklyProgress}
-                      progressMax={target}
-                      score={weeklyScore}
-                      scoreMax={scoreMax}
-                    />
+              // Define responsive max width for the progress bar (in pixels)
+              // Mobile: 80px, Desktop: 120
+              const maxProgressBarWidth =
+                typeof window !== "undefined" && window.innerWidth >= 640
+                  ? 120
+                  : 80;
+              return activeHabits.map((scoredHabit: ScoredHabit) => {
+                const weeklyCompletions = getWeeklyCompletionCount(
+                  scoredHabit.habitId
+                );
+                const target = scoredHabit.targetFrequency || 1;
+                const scoreMax = getScoreMax(scoredHabit, activeHabits);
+                const completionRatio = Math.min(weeklyCompletions / target, 1);
+                const weeklyScore = completionRatio * scoreMax;
+                const weeklyProgress = getWeeklyProgressSegments(scoredHabit);
+                const pointsPerCompletion = getPointsPerCompletion(
+                  scoredHabit,
+                  activeHabits
+                );
+                // Calculate proportional width based on this habit's max score
+                const proportionalWidth =
+                  (scoreMax / maxScoreAmongHabits) * 120; // CSS will handle responsive max-width
+                return (
+                  <div
+                    key={scoredHabit.habitId}
+                    className="flex items-center gap-3"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <HabitScoreRow
+                        habitName={scoredHabit.habit.name}
+                        pointsPerCompletion={pointsPerCompletion}
+                        progressCurrent={weeklyProgress}
+                        progressMax={target}
+                        score={weeklyScore}
+                        scoreMax={scoreMax}
+                        progressBarWidth={proportionalWidth}
+                      />
+                    </div>
+                    <div className="flex-shrink-0">
+                      <Checkbox
+                        checked={!!logData[scoredHabit.habitId]}
+                        onCheckedChange={(checked) =>
+                          isEditing &&
+                          setLogData((d) => ({
+                            ...d,
+                            [scoredHabit.habitId]: !!checked,
+                          }))
+                        }
+                        disabled={!isEditing}
+                        className="w-5 h-5"
+                      />
+                    </div>
                   </div>
-                  <div className="flex-shrink-0">
-                    <Checkbox
-                      checked={!!logData[scoredHabit.habitId]}
-                      onCheckedChange={(checked) =>
-                        isEditing &&
-                        setLogData((d) => ({
-                          ...d,
-                          [scoredHabit.habitId]: !!checked,
-                        }))
-                      }
-                      disabled={!isEditing}
-                      className="w-5 h-5"
-                    />
-                  </div>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
             {/* TOTAL Bar */}
             <div className="border-t pt-3 mt-4">
               <div className="grid grid-cols-12 gap-2 items-center text-sm font-semibold">
