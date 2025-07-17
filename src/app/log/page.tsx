@@ -22,7 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "react-hot-toast";
 import { fetcher } from "@/lib/swr";
-import { Pencil, ChevronLeft, ChevronRight, Coins } from "lucide-react";
+import { Pencil, ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import WeeklyScoreDisplay from "@/components/WeeklyScoreDisplay";
 import SegmentedProgressBar from "@/components/SegmentedProgressBar";
 import HabitScoreRow from "@/components/HabitScoreRow";
@@ -120,16 +120,20 @@ function WeekSelector({
   };
 
   return (
-    <div className="flex items-center justify-center gap-2 my-6">
-      <button onClick={handlePrevWeek} className="p-2 rounded hover:bg-muted">
-        <ChevronLeft className="w-5 h-5" />
+    <div className="flex items-center justify-center gap-1 sm:gap-2 my-4:my-6 px-2">
+      <button
+        onClick={handlePrevWeek}
+        className="p-2 rounded hover:bg-muted"
+        aria-label="Previous week"
+      >
+        <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
       </button>
-      <div className="flex gap-2">
+      <div className="flex gap-1 p-2 flex-1 justify-center">
         {weekDates.map((dateStr, idx) => {
           const isSelected = dateStr === selectedDate;
           const hasLog = hasLogForDate(dateStr);
           let buttonClass =
-            "flex flex-col items-center justify-center w-10 h-12 rounded border transition-colors ";
+            "flex flex-col items-center justify-center w-8 h-10 sm:w-10 sm:h-12 rounded border transition-colors";
           if (isSelected) {
             buttonClass += "bg-primary text-primary-foreground border-primary ";
           } else if (hasLog) {
@@ -143,15 +147,24 @@ function WeekSelector({
               key={dateStr}
               onClick={() => setSelectedDate(dateStr)}
               className={buttonClass}
+              aria-label={`Select ${dayLabels[idx]} ${dateStr.slice(8, 10)}`}
             >
-              <span className="font-bold text-base">{dayLabels[idx]}</span>
-              <span className="text-xs mt-1">{dateStr.slice(8, 10)}</span>
+              <span className="font-bold text-xs sm:text-base">
+                {dayLabels[idx]}
+              </span>
+              <span className="text-xs mt-0.5 sm:mt-1">
+                {dateStr.slice(8, 10)}
+              </span>
             </button>
           );
         })}
       </div>
-      <button onClick={handleNextWeek} className="p-2 rounded hover:bg-muted">
-        <ChevronRight className="w-5 h-5" />
+      <button
+        onClick={handleNextWeek}
+        className="p-2 rounded hover:bg-muted"
+        aria-label="Next week"
+      >
+        <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
       </button>
     </div>
   );
@@ -331,7 +344,7 @@ export default function LogPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="max-w-4xl mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
       {/* Weekly Score Display
       {activeHabits.length > 0 && (
         <WeeklyScoreDisplay
@@ -348,16 +361,19 @@ export default function LogPage() {
       />
 
       {/* Daily Log Form */}
-      <div className="rounded-md border shadow-sm p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold">Log Entry</h1>
+      <div className="rounded-md border shadow-sm p-4 sm:p-6">
+        <div className="flex items-center justify-between mb-4 sm:mb-6">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-muted-foreground" />
+            <h1 className="text-xl sm:text-2xl font-semibold">Log Entry</h1>
+          </div>
           {!isEditing && (
             <button
               onClick={() => setIsEditing(true)}
-              className="text-sm text-blue-500 hover:text-blue-700"
+              className="text-sm text-blue-500 hover:text-blue-700 p-2 rounded hover:bg-blue-50"
             >
               <Pencil className="w-4 h-4 inline mr-1" />
-              Edit
+              <span className="hidden sm:inline">Edit</span>
             </button>
           )}
         </div>
@@ -385,8 +401,6 @@ export default function LogPage() {
             </p>
           </div>
         )}
-
-        {/* Removed select date dropdown */}
 
         {isLoading && (
           <div className="flex items-center justify-center py-8">
@@ -429,8 +443,11 @@ export default function LogPage() {
               );
 
               return (
-                <div key={scoredHabit.habitId} className="flex items-center">
-                  <div className="flex-1">
+                <div
+                  key={scoredHabit.habitId}
+                  className="flex items-center gap-3"
+                >
+                  <div className="flex-1 min-w-0">
                     <HabitScoreRow
                       habitName={scoredHabit.habit.name}
                       pointsPerCompletion={pointsPerCompletion}
@@ -440,7 +457,7 @@ export default function LogPage() {
                       scoreMax={scoreMax}
                     />
                   </div>
-                  <div className="ml-4">
+                  <div className="flex-shrink-0">
                     <Checkbox
                       checked={!!logData[scoredHabit.habitId]}
                       onCheckedChange={(checked) =>
@@ -451,6 +468,7 @@ export default function LogPage() {
                         }))
                       }
                       disabled={!isEditing}
+                      className="w-5 h-5"
                     />
                   </div>
                 </div>
@@ -459,7 +477,9 @@ export default function LogPage() {
             {/* TOTAL Bar */}
             <div className="border-t pt-3 mt-4">
               <div className="grid grid-cols-12 gap-2 items-center text-sm font-semibold">
-                <div className="col-span-3 text-right">TOTAL</div>
+                <div className="col-span-3 text-right text-xs sm:text-sm">
+                  TOTAL
+                </div>
                 <div className="col-span-6">
                   {(() => {
                     // Calculate the current total score using patched weekly logs (live with checkbox changes)
@@ -484,16 +504,16 @@ export default function LogPage() {
                     const percent =
                       maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
                     return (
-                      <div className="relative w-full h-4 rounded-sm overflow-hidden bg-gray-200 dark:bg-gray-700">
+                      <div className="relative w-full h-3 sm:h-4 rounded-sm overflow-hidden bg-gray-200 dark:bg-gray-700">
                         <div
-                          className="absolute left-0 top-0 h-4 bg-yellow-500 rounded-sm transition-all duration-300"
+                          className="absolute left-0 top-0 h-3 sm:h-4 bg-yellow-500 rounded-sm transition-all duration-300"
                           style={{ width: `${percent}%` }}
                         />
                       </div>
                     );
                   })()}
                 </div>
-                <div className="col-span-3 text-right">
+                <div className="col-span-3 text-right text-xs sm:text-sm">
                   {(() => {
                     const patchedLogs = getPatchedWeeklyLogs();
                     const totalScore = activeHabits.reduce((sum, habit) => {
@@ -530,7 +550,7 @@ export default function LogPage() {
           value={notes}
           onChange={(e) => isEditing && setNotes(e.target.value)}
           placeholder="Any notes for this day?"
-          className="mt-4"
+          className="mt-4 min-h-[80px] sm:min-h-[100px] resize-none"
           disabled={!isEditing}
         />
 
@@ -538,7 +558,7 @@ export default function LogPage() {
           <Button
             onClick={handleSubmit}
             disabled={loading}
-            className="mt-4 w-full bg-green-600 text-white hover:bg-green-700"
+            className="mt-4 w-full bg-green-600 text-white hover:bg-green-700 h-12 sm:h-10 text-base"
           >
             {loading ? "Saving..." : "Submit"}
           </Button>
