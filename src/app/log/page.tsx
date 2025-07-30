@@ -26,6 +26,7 @@ import { Pencil, ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import HabitScoreRow from "@/components/HabitScoreRow";
 import { parseDateOnly, toDateString, isSameDate } from "@/lib/date";
 import { getPointsPerCompletion, getScoreMax } from "@/lib/scoredHabitUtils";
+import { useUser, SignInButton } from "@clerk/nextjs";
 
 // TODO: colours are broken on dark mode, fix this later
 // TODO: arrows on left and right to go back and forward a day
@@ -169,6 +170,21 @@ function WeekSelector({
 }
 
 export default function LogPage() {
+  const { isSignedIn } = useUser();
+
+  if (!isSignedIn) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh]">
+        <h1 className="text-xl font-semibold mb-4">
+          Please sign in to view your log
+        </h1>
+        <SignInButton mode="modal">
+          <Button variant="default">Sign In</Button>
+        </SignInButton>
+      </div>
+    );
+  }
+
   const today = toDateString(new Date());
   const [selectedDate, setSelectedDate] = useState<string>(today);
   const [isEditing, setIsEditing] = useState<boolean>(false);

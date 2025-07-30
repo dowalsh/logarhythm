@@ -6,8 +6,25 @@ import {
   WeeklyScore,
 } from "@/components/WeeklyScoreAreaChart";
 import { fetcher } from "@/lib/swr";
+import { useUser, SignInButton } from "@clerk/nextjs";
+import { Button } from "@/components/ui/button";
 
 export default function Home() {
+  const { isSignedIn } = useUser();
+
+  if (!isSignedIn) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh]">
+        <h1 className="text-xl font-semibold mb-4">
+          Please sign in to view your dashboard
+        </h1>
+        <SignInButton mode="modal">
+          <Button variant="default">Sign In</Button>
+        </SignInButton>
+      </div>
+    );
+  }
+
   const { data, error, isLoading } = useSWR<{ data: WeeklyScore[] }>(
     "/api/weekly-scores",
     fetcher
