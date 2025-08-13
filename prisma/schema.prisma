@@ -97,17 +97,18 @@ model WeeklyLog {
   createdAt        DateTime       @default(now())
 
   @@unique([userId, startDate])
+  @@index([startDate])
   @@map("Week") // legacy table rename if needed
 }
 
 model DailyLog {
   id               String         @id @default(cuid())
   userId           String
-  weeklyLogId      String
+  weeklyLogId      String? // update this later back to required!
   scoringSystemId  String
 
   user             User           @relation(fields: [userId], references: [id])
-  weeklyLog        WeeklyLog      @relation(fields: [weeklyLogId], references: [id])
+  weeklyLog        WeeklyLog?     @relation(fields: [weeklyLogId], references: [id])
   scoringSystem    ScoringSystem  @relation(fields: [scoringSystemId], references: [id])
 
   date             String         // 'YYYY-MM-DD'

@@ -1,16 +1,24 @@
-import { parseISO, format } from "date-fns";
+// lib/date.
 
-// Parse a date-only string (YYYY-MM-DD) to a Date at local midnight
+import { parseISO, format } from "date-fns";
+import { startOfWeek } from "date-fns";
+
+// Existing code...
 export function parseDateOnly(dateStr: string): Date {
   return parseISO(dateStr);
 }
 
-// Convert a Date to a YYYY-MM-DD string (local date)
 export function toDateString(date: Date): string {
   return format(date, "yyyy-MM-dd");
 }
 
-// Compare two dates by day (local date)
 export function isSameDate(a: Date, b: Date): boolean {
   return toDateString(a) === toDateString(b);
+}
+
+// ✅ New function to determine start of week (Monday)
+export function getStartOfWeek(dateStr: string): string {
+  const date = parseDateOnly(dateStr); // Local midnight
+  const start = startOfWeek(date, { weekStartsOn: 1 }); // Monday
+  return toDateString(start); // 'YYYY-MM-DD'
 }
