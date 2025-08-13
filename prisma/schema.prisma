@@ -35,6 +35,7 @@ model User {
   modifiers       Modifier[]
   weeklyScores    WeeklyScore[]
   scoringSystems  ScoringSystem[]
+  weeks           Week[]          // opposite relation to Week.user
 }
 
 model Habit {
@@ -47,7 +48,7 @@ model Habit {
   createdAt       DateTime         @default(now())
 
   habitLogs       HabitLog[]
-  scoringConfigs  ScoredHabit[]
+  scoringConfigs  ScoredHabit[]    // opposite relation to ScoredHabit.habit
 }
 
 model ScoringSystem {
@@ -58,8 +59,9 @@ model ScoringSystem {
   isActive   Boolean        @default(true)
   createdAt  DateTime       @default(now())
 
-  habits     ScoredHabit[]
-  dailyLogs  DailyLog[]
+  habits     ScoredHabit[]  // opposite relation to ScoredHabit.scoringSystem
+  dailyLogs  DailyLog[]     // opposite relation to DailyLog.scoringSystem
+  weeks      Week[]         // opposite relation to Week.scoringSystem
 }
 
 model ScoredHabit {
@@ -77,19 +79,44 @@ model ScoredHabit {
   @@unique([scoringSystemId, habitId])
 }
 
+model Week {
+  id               String         @id @default(cuid())
+  userId           String
+  user             User           @relation(fields: [userId], references: [id])
+
+  // Store start of week (e.g., Monday) as date-only string; end date can be derived in code
+  startDate        String         // 'YYYY-MM-DD'
+
+  scoringSystemId  String
+  scoringSystem    ScoringSystem  @relation(fields: [scoringSystemId], references: [id])
+
+  dailyLogs        DailyLog[]     // all logs within this week
+  weeklyScore      WeeklyScore?   // optional 1:1 summary for this week
+  modifiers        Modifier[]     // adjustments applied to this week
+
+  createdAt        DateTime       @default(now())
+
+  @@unique([userId, startDate])
+}
+
 model DailyLog {
   id               String         @id @default(cuid())
   userId           String
+  weekId           String
   scoringSystemId  String
+
   user             User           @relation(fields: [userId], references: [id])
+  week             Week           @relation(fields: [weekId], references: [id])
   scoringSystem    ScoringSystem  @relation(fields: [scoringSystemId], references: [id])
-  date             String   // 'YYYY-MM-DD'
+
+  date             String         // 'YYYY-MM-DD' (belongs inside Week range)
   notes            String?
   createdAt        DateTime       @default(now())
 
   habitLogs        HabitLog[]
 
   @@unique([userId, date])
+  @@index([weekId])
 }
 
 model HabitLog {
@@ -103,28 +130,35 @@ model HabitLog {
   habit      Habit      @relation(fields: [habitId], references: [id])
 
   @@unique([dailyLogId, habitId])
+  @@index([habitId])
 }
 
 model Modifier {
   id        String   @id @default(cuid())
   userId    String
+  weekId    String
+
   user      User     @relation(fields: [userId], references: [id])
-  weekStart String   // 'YYYY-MM-DD'
+  week      Week     @relation(fields: [weekId], references: [id])
+
   label     String
   value     Float
   createdAt DateTime @default(now())
+
+  @@index([weekId])
 }
 
 model WeeklyScore {
   id          String   @id @default(cuid())
   userId      String
+  weekId      String   @unique
+
   user        User     @relation(fields: [userId], references: [id])
-  weekStart   String   // 'YYYY-MM-DD'
+  week        Week     @relation(fields: [weekId], references: [id])
+
   habitScore  Float
   modifierSum Float
   finalScore  Float
   breakdown   Json
   createdAt   DateTime @default(now())
-
-  @@unique([userId, weekStart])
 }
