@@ -7,8 +7,128 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// =========================
-// ENUMS
+model User {
+  id             String          @id @default(cuid())
+  email          String          @unique
+  createdAt      DateTime        @default(now())
+  dailyLogs      DailyLog[]
+  habits         Habit[]
+  modifiers      Modifier[]
+  scoringSystems ScoringSystem[]
+  WeeklyLog      WeeklyLog[]
+  WeeklyScore    WeeklyScore[]
+}
+
+model Habit {
+  id             String        @id @default(cuid())
+  userId         String
+  name           String
+  description    String?
+  createdAt      DateTime      @default(now())
+  habitType      HabitType     @default(BOOLEAN)
+  user           User          @relation(fields: [userId], references: [id])
+  habitLogs      HabitLog[]
+  scoringConfigs ScoredHabit[]
+}
+
+model ScoringSystem {
+  id        String        @id @default(cuid())
+  userId    String
+  name      String
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  dailyLogs DailyLog[]
+  habits    ScoredHabit[]
+  user      User          @relation(fields: [userId], references: [id])
+  WeeklyLog WeeklyLog[]
+}
+
+model ScoredHabit {
+  id              String           @id @default(cuid())
+  scoringSystemId String
+  habitId         String
+  scoringType     HabitScoringType
+  weight          Int
+  targetFrequency Int?
+  habit           Habit            @relation(fields: [habitId], references: [id])
+  scoringSystem   ScoringSystem    @relation(fields: [scoringSystemId], references: [id])
+
+  @@unique([scoringSystemId, habitId])
+}
+
+model DailyLog {
+  id              String        @id @default(cuid())
+  userId          String
+  date            String
+  notes           String?
+  createdAt       DateTime      @default(now())
+  scoringSystemId String
+  weeklyLogId     String
+  scoringSystem   ScoringSystem @relation(fields: [scoringSystemId], references: [id])
+  user            User          @relation(fields: [userId], references: [id])
+  weeklyLog       WeeklyLog     @relation(fields: [weeklyLogId], references: [id])
+  habitLogs       HabitLog[]
+
+  @@unique([userId, date])
+  @@index([weeklyLogId])
+}
+
+model HabitLog {
+  id         String   @id @default(cuid())
+  dailyLogId String
+  habitId    String
+  value      Float?
+  completed  Boolean?
+  dailyLog   DailyLog @relation(fields: [dailyLogId], references: [id])
+  habit      Habit    @relation(fields: [habitId], references: [id])
+
+  @@unique([dailyLogId, habitId])
+  @@index([habitId])
+}
+
+model Modifier {
+  id          String    @id @default(cuid())
+  userId      String
+  label       String
+  value       Float
+  createdAt   DateTime  @default(now())
+  weeklyLogId String
+  user        User      @relation(fields: [userId], references: [id])
+  weeklyLog   WeeklyLog @relation(fields: [weeklyLogId], references: [id])
+
+  @@index([weeklyLogId])
+}
+
+model WeeklyLog {
+  id              String        @id @default(cuid())
+  userId          String
+  startDate       String
+  scoringSystemId String
+  createdAt       DateTime      @default(now())
+  dailyLogs       DailyLog[]
+  modifiers       Modifier[]
+  ScoringSystem   ScoringSystem @relation(fields: [scoringSystemId], references: [id], map: "Week_scoringSystemId_fkey")
+  User            User          @relation(fields: [userId], references: [id], map: "Week_userId_fkey")
+  WeeklyScore     WeeklyScore?
+
+  score Float? @default(0)
+
+  @@unique([userId, startDate], map: "Week_userId_startDate_key")
+  @@index([startDate], map: "Week_startDate_idx")
+}
+
+model WeeklyScore {
+  id          String    @id
+  userId      String
+  habitScore  Float
+  modifierSum Float
+  finalScore  Float
+  breakdown   Json
+  createdAt   DateTime  @default(now())
+  weeklyLogId String    @unique
+  User        User      @relation(fields: [userId], references: [id])
+  WeeklyLog   WeeklyLog @relation(fields: [weeklyLogId], references: [id])
+}
 
 enum HabitScoringType {
   LINEAR_POSITIVE_CAPPED
@@ -20,147 +140,4 @@ enum HabitScoringType {
 enum HabitType {
   BOOLEAN
   NUMERIC
-}
-
-// =========================
-// MODELS
-
-model User {
-  id              String           @id @default(cuid())
-  email           String           @unique
-  createdAt       DateTime         @default(now())
-
-  habits          Habit[]
-  dailyLogs       DailyLog[]
-  weeklyLogs      WeeklyLog[]
-  weeklyScores    WeeklyScore[]
-  modifiers       Modifier[]
-  scoringSystems  ScoringSystem[]
-}
-
-model Habit {
-  id              String           @id @default(cuid())
-  userId          String
-  user            User             @relation(fields: [userId], references: [id])
-  name            String
-  description     String?
-  habitType       HabitType        @default(BOOLEAN)
-  createdAt       DateTime         @default(now())
-
-  habitLogs       HabitLog[]
-  scoringConfigs  ScoredHabit[]
-}
-
-model ScoringSystem {
-  id              String           @id @default(cuid())
-  userId          String
-  user            User             @relation(fields: [userId], references: [id])
-  name            String
-  isActive        Boolean          @default(true)
-  createdAt       DateTime         @default(now())
-
-  habits          ScoredHabit[]
-  dailyLogs       DailyLog[]
-  weeklyLogs      WeeklyLog[]
-}
-
-model ScoredHabit {
-  id              String           @id @default(cuid())
-  scoringSystemId String
-  habitId         String
-
-  scoringType     HabitScoringType
-  weight          Int
-  targetFrequency Int?
-
-  scoringSystem   ScoringSystem    @relation(fields: [scoringSystemId], references: [id])
-  habit           Habit            @relation(fields: [habitId], references: [id])
-
-  @@unique([scoringSystemId, habitId])
-}
-
-model WeeklyLog {
-  id               String         @id @default(cuid())
-  userId           String
-  user             User           @relation(fields: [userId], references: [id])
-
-  // Store start of week (e.g., Monday) as date-only string; end date can be derived in code
-  startDate        String         // 'YYYY-MM-DD'
-
-  scoringSystemId  String
-  scoringSystem    ScoringSystem  @relation(fields: [scoringSystemId], references: [id])
-
-  dailyLogs        DailyLog[]     // all logs within this week
-  weeklyScore      WeeklyScore?   // optional 1:1 summary for this week
-  modifiers        Modifier[]     // adjustments applied to this week
-
-  createdAt        DateTime       @default(now())
-
-  @@unique([userId, startDate])
-  @@index([startDate])
-  @@map("Week") // legacy table rename if needed
-}
-
-model DailyLog {
-  id               String         @id @default(cuid())
-  userId           String
-  weeklyLogId      String? // update this later back to required!
-  scoringSystemId  String
-
-  user             User           @relation(fields: [userId], references: [id])
-  weeklyLog        WeeklyLog?     @relation(fields: [weeklyLogId], references: [id])
-  scoringSystem    ScoringSystem  @relation(fields: [scoringSystemId], references: [id])
-
-  date             String         // 'YYYY-MM-DD'
-  notes            String?
-  createdAt        DateTime       @default(now())
-
-  habitLogs        HabitLog[]
-
-  @@unique([userId, date])
-  @@index([weeklyLogId])
-}
-
-model HabitLog {
-  id         String     @id @default(cuid())
-  dailyLogId String
-  habitId    String
-  value      Float?
-  completed  Boolean?
-
-  dailyLog   DailyLog   @relation(fields: [dailyLogId], references: [id])
-  habit      Habit      @relation(fields: [habitId], references: [id])
-
-  @@unique([dailyLogId, habitId])
-  @@index([habitId])
-}
-
-model Modifier {
-  id        String   @id @default(cuid())
-  userId    String
-  weeklyLogId String
-
-  user      User     @relation(fields: [userId], references: [id])
-  weeklyLog WeeklyLog @relation(fields: [weeklyLogId], references: [id])
-
-  label     String
-  value     Float
-  createdAt DateTime @default(now())
-
-  @@index([weeklyLogId])
-}
-
-model WeeklyScore {
-  id          String   @id @default(cuid())
-  userId      String
-  weeklyLogId String   @unique
-
-  user        User     @relation(fields: [userId], references: [id])
-  weeklyLog   WeeklyLog @relation(fields: [weeklyLogId], references: [id])
-
-  habitScore  Float
-  modifierSum Float
-  finalScore  Float
-  breakdown   Json
-  createdAt   DateTime @default(now())
 }
