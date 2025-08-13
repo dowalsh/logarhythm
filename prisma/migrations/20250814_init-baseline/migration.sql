@@ -91,22 +91,9 @@ CREATE TABLE "WeeklyLog" (
     "startDate" TEXT NOT NULL,
     "scoringSystemId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "score" DOUBLE PRECISION DEFAULT 0,
 
-    CONSTRAINT "Week_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "WeeklyScore" (
-    "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "habitScore" DOUBLE PRECISION NOT NULL,
-    "modifierSum" DOUBLE PRECISION NOT NULL,
-    "finalScore" DOUBLE PRECISION NOT NULL,
-    "breakdown" JSONB NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "weeklyLogId" TEXT NOT NULL,
-
-    CONSTRAINT "WeeklyScore_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "WeeklyLog_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -135,9 +122,6 @@ CREATE INDEX "Week_startDate_idx" ON "WeeklyLog"("startDate");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Week_userId_startDate_key" ON "WeeklyLog"("userId", "startDate");
-
--- CreateIndex
-CREATE UNIQUE INDEX "WeeklyScore_weeklyLogId_key" ON "WeeklyScore"("weeklyLogId");
 
 -- AddForeignKey
 ALTER TABLE "Habit" ADD CONSTRAINT "Habit_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -177,10 +161,4 @@ ALTER TABLE "WeeklyLog" ADD CONSTRAINT "Week_scoringSystemId_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "WeeklyLog" ADD CONSTRAINT "Week_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "WeeklyScore" ADD CONSTRAINT "WeeklyScore_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "WeeklyScore" ADD CONSTRAINT "WeeklyScore_weeklyLogId_fkey" FOREIGN KEY ("weeklyLogId") REFERENCES "WeeklyLog"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 

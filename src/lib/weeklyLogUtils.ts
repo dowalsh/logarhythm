@@ -28,6 +28,10 @@ export async function ensureWeeklyLog(
 }
 
 export async function calculateWeeklyScore(weeklyLogId: string) {
+  // Fetch the weekly log with all related data:
+  // - dailyLogs (each with their habitLogs)
+  // - ScoringSystem (with its habits and their scoring rules)
+  // - modifiers (any manual score adjustments)
   const weeklyLog = await prisma.weeklyLog.findUnique({
     where: { id: weeklyLogId },
     include: {
@@ -43,9 +47,12 @@ export async function calculateWeeklyScore(weeklyLogId: string) {
 
   if (!weeklyLog) throw new Error("WeeklyLog not found");
 
+  // Map to count how many times each habit was completed in the week
   const habitLogMap: Record<string, number> = {};
 
+  // Iterate over each day's logs
   for (const log of weeklyLog.dailyLogs) {
+    // For each habit log in the day, increment count if completed
     for (const hl of log.habitLogs) {
       if (hl.completed) {
         habitLogMap[hl.habitId] = (habitLogMap[hl.habitId] || 0) + 1;
@@ -55,20 +62,41 @@ export async function calculateWeeklyScore(weeklyLogId: string) {
 
   let score = 0;
 
+  // get the sum of the weights of all habits in this scoring system
+  const totalWeight = weeklyLog.ScoringSystem.habits.reduce(
+    (sum, habit) => sum + habit.weight,
+    0
+  );
+
+  // For each habit in the scoring system:
+  // - Get how many times it was completed (from habitLogMap)
+  // - Cap the count at the target frequency (default 7 if not set)
+  // evaluate the proportion completed of the target
+  // Multiply by the habit's weight as a proportion of totalWeight and add to score
   for (const scored of weeklyLog.ScoringSystem.habits) {
     const count = habitLogMap[scored.habitId] || 0;
-    const capped = Math.min(count, scored.targetFrequency ?? 7);
-    score += capped * scored.weight;
+    console.log(`Habit (ID: ${scored.habitId}) - Completed: ${count} times`);
+    const targetFrequency = scored.targetFrequency ?? 1;
+    console.log(`Target frequency for habit: ${targetFrequency}`);
+    const proportion_completed = Math.min(1, count / targetFrequency);
+    console.log(`Proportion completed for habit: ${proportion_completed}`);
+    const weightProportion = totalWeight > 0 ? scored.weight / totalWeight : 0;
+    console.log(
+      `Weight: ${scored.weight}, Weight proportion: ${weightProportion}`
+    );
+    const habitScore = proportion_completed * weightProportion * 100;
+    console.log(`Score contribution from habit: ${habitScore}`);
+    score += habitScore;
   }
+  console.log(`Total weekly score before modifiers: ${score}`);
 
-  const modifierSum = weeklyLog.modifiers.reduce((sum, m) => sum + m.value, 0);
-  score += modifierSum;
-
+  // Update the weekly log with the new score
   await prisma.weeklyLog.update({
     where: { id: weeklyLogId },
     data: { score },
   });
 
+  // Log the update for debugging
   console.log(
     `✅ WeeklyLog ${weeklyLog.startDate} updated with score: ${score}`
   );
