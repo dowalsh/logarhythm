@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, Cell } from "recharts";
 
 import {
   Card,
@@ -36,7 +36,7 @@ const chartConfig: ChartConfig = {
   },
 };
 
-export function WeeklyScoreAreaChart({ data }: WeeklyScoreAreaChartProps) {
+export function WeeklyScoreChart({ data }: WeeklyScoreAreaChartProps) {
   return (
     <Card className="pt-0">
       <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
@@ -52,21 +52,7 @@ export function WeeklyScoreAreaChart({ data }: WeeklyScoreAreaChartProps) {
           config={chartConfig}
           className="aspect-auto h-[250px] w-full"
         >
-          <AreaChart data={data}>
-            <defs>
-              <linearGradient id="fillTotalScore" x1="0" y1="0" x2="0" y2="1">
-                <stop
-                  offset="5%"
-                  stopColor="var(--color-totalScore)"
-                  stopOpacity={0.8}
-                />
-                <stop
-                  offset="95%"
-                  stopColor="var(--color-totalScore)"
-                  stopOpacity={0.1}
-                />
-              </linearGradient>
-            </defs>
+          <BarChart data={data}>
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="week"
@@ -98,15 +84,26 @@ export function WeeklyScoreAreaChart({ data }: WeeklyScoreAreaChartProps) {
                 />
               }
             />
-            <Area
-              dataKey="totalScore"
-              type="natural"
-              fill="url(#fillTotalScore)"
-              stroke="var(--color-totalScore)"
-              stackId="a"
-            />
+
+            <Bar dataKey="totalScore">
+              {data.map((entry, index) => {
+                // ratio: 0 (red) → 1 (green)
+                const ratio = Math.min(1, entry.totalScore / 100);
+
+                // simple linear gradient between red (low) and green (high)
+                const r = Math.round(255 * (1 - ratio));
+                const g = Math.round(200 * ratio);
+                const b = 0;
+
+                return (
+                  <Cell key={`cell-${index}`} fill={`rgb(${r},${g},${b})`} />
+                );
+              })}
+              radius={[6, 6, 0, 0]}
+            </Bar>
+
             <ChartLegend content={<ChartLegendContent />} />
-          </AreaChart>
+          </BarChart>
         </ChartContainer>
       </CardContent>
     </Card>

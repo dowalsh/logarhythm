@@ -1,10 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import {
-  WeeklyScoreAreaChart,
-  WeeklyScore,
-} from "@/components/WeeklyScoreAreaChart";
+import { WeeklyScoreChart, WeeklyScore } from "@/components/WeeklyScoreChart";
 import { fetcher } from "@/lib/swr";
 import { useUser, SignInButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
@@ -38,7 +35,7 @@ export default function Home() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
       <div className="lg:col-span-6">
-        <WeeklyScoreAreaChart data={chartData} />
+        <WeeklyScoreChart data={chartData} />
       </div>
       <div className="hidden lg:block lg:col-span-4 sticky top-20"></div>
     </div>
