@@ -92,6 +92,9 @@ export function WeeklyScoreChart({ data }: WeeklyScoreAreaChartProps) {
                   indicator="dot"
                 />
               }
+              formatter={(value: number) =>
+                `Score: ${Number(value).toFixed(0)}%`
+              }
             />
 
             <Bar dataKey="totalScore">
