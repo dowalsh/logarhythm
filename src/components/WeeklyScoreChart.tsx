@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Bar, BarChart, CartesianGrid, XAxis, Cell } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from "recharts";
 
 import {
   Card,
@@ -47,10 +47,10 @@ export function WeeklyScoreChart({ data }: WeeklyScoreAreaChartProps) {
           </CardDescription>
         </div>
       </CardHeader>
-      <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
+      <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6 flex justify-center">
         <ChartContainer
           config={chartConfig}
-          className="aspect-auto h-[250px] w-full"
+          className="aspect-auto h-[250px] w-full max-w-2xl"
         >
           <BarChart data={data}>
             <CartesianGrid vertical={false} />
@@ -58,8 +58,8 @@ export function WeeklyScoreChart({ data }: WeeklyScoreAreaChartProps) {
               dataKey="week"
               tickLine={false}
               axisLine={false}
-              tickMargin={8}
-              minTickGap={32}
+              // tickMargin={8}
+              // minTickGap={32}
               tickFormatter={(value) => {
                 // Format as e.g. "Jul 1"
                 const date = new Date(value);
@@ -68,6 +68,15 @@ export function WeeklyScoreChart({ data }: WeeklyScoreAreaChartProps) {
                   day: "numeric",
                 });
               }}
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              orientation="right"
+              tickMargin={8}
+              domain={[0, 100]}
+              ticks={[0, 20, 40, 60, 80, 100]}
+              width={32}
             />
             <ChartTooltip
               cursor={false}
