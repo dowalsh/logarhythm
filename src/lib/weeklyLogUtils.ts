@@ -1,103 +1,60 @@
 // lib/weeklyLogUtils.ts
 import { prisma } from "@/lib/prisma";
-import { getStartOfWeek } from "@/lib/date";
+import { getStartOfWeek } from "@/lib/date"; // returns 'yyyy-MM-dd'
+import { computeWeeklyScores } from "@/lib/scoredHabitUtils";
 
 export async function ensureWeeklyLog(
   userId: string,
   dateStr: string,
   scoringSystemId: string
 ) {
-  const startDate = getStartOfWeek(dateStr); // 'YYYY-MM-DD'
+  const startDate = getStartOfWeek(dateStr); // 'yyyy-MM-dd' Monday start (match UI/API)
 
   const weeklyLog = await prisma.weeklyLog.upsert({
     where: {
-      userId_startDate: {
-        userId,
-        startDate,
-      },
+      userId_startDate: { userId, startDate },
     },
     update: {},
-    create: {
-      userId,
-      startDate,
-      scoringSystemId,
-    },
+    create: { userId, startDate, scoringSystemId },
   });
 
   return weeklyLog;
 }
 
-export async function calculateWeeklyScore(weeklyLogId: string) {
-  // Fetch the weekly log with all related data:
-  // - dailyLogs (each with their habitLogs)
-  // - ScoringSystem (with its habits and their scoring rules)
-  // - modifiers (any manual score adjustments)
+/**
+ * Recalculate and persist the weekly score using shared scoring utilities.
+ * Assumes weeklyLog.scoringSystemId points to the system used for that week.
+ */
+export async function updateWeeklyScore(weeklyLogId: string) {
   const weeklyLog = await prisma.weeklyLog.findUnique({
     where: { id: weeklyLogId },
     include: {
       dailyLogs: { include: { habitLogs: true } },
       ScoringSystem: {
         include: {
-          habits: true,
+          habits: { include: { habit: true } }, // include habit for name if desired
         },
       },
-      modifiers: true,
+      // modifiers: true, // omit for MVP (not applied below)
     },
   });
 
   if (!weeklyLog) throw new Error("WeeklyLog not found");
 
-  // Map to count how many times each habit was completed in the week
-  const habitLogMap: Record<string, number> = {};
+  // Use the exact scored habits for THIS weekly log’s scoring system
+  const activeHabits = weeklyLog.ScoringSystem.habits;
 
-  // Iterate over each day's logs
-  for (const log of weeklyLog.dailyLogs) {
-    // For each habit log in the day, increment count if completed
-    for (const hl of log.habitLogs) {
-      if (hl.completed) {
-        habitLogMap[hl.habitId] = (habitLogMap[hl.habitId] || 0) + 1;
-      }
-    }
-  }
-
-  let score = 0;
-
-  // get the sum of the weights of all habits in this scoring system
-  const totalWeight = weeklyLog.ScoringSystem.habits.reduce(
-    (sum, habit) => sum + habit.weight,
-    0
+  // Run the same math as the client (one source of truth)
+  const { totalScore } = computeWeeklyScores(
+    activeHabits as any,
+    weeklyLog.dailyLogs as any
   );
 
-  // For each habit in the scoring system:
-  // - Get how many times it was completed (from habitLogMap)
-  // - Cap the count at the target frequency (default 7 if not set)
-  // evaluate the proportion completed of the target
-  // Multiply by the habit's weight as a proportion of totalWeight and add to score
-  for (const scored of weeklyLog.ScoringSystem.habits) {
-    const count = habitLogMap[scored.habitId] || 0;
-    console.log(`Habit (ID: ${scored.habitId}) - Completed: ${count} times`);
-    const targetFrequency = scored.targetFrequency ?? 1;
-    console.log(`Target frequency for habit: ${targetFrequency}`);
-    const proportion_completed = Math.min(1, count / targetFrequency);
-    console.log(`Proportion completed for habit: ${proportion_completed}`);
-    const weightProportion = totalWeight > 0 ? scored.weight / totalWeight : 0;
-    console.log(
-      `Weight: ${scored.weight}, Weight proportion: ${weightProportion}`
-    );
-    const habitScore = proportion_completed * weightProportion * 100;
-    console.log(`Score contribution from habit: ${habitScore}`);
-    score += habitScore;
-  }
-  console.log(`Total weekly score before modifiers: ${score}`);
-
-  // Update the weekly log with the new score
+  // Persist raw total (already 0–100 under current rules)
   await prisma.weeklyLog.update({
     where: { id: weeklyLogId },
-    data: { score },
+    data: { score: totalScore },
   });
 
-  // Log the update for debugging
-  console.log(
-    `✅ WeeklyLog ${weeklyLog.startDate} updated with score: ${score}`
-  );
+  return totalScore;
 }

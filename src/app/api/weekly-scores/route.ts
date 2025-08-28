@@ -1,8 +1,10 @@
+// /app/api/weekly-scores/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
-import { startOfWeek, subWeeks, formatISO } from "date-fns";
-import { getStartOfWeek } from "@/lib/date";
+import { startOfWeek, addWeeks, subWeeks } from "date-fns";
+import { toDateString } from "@/lib/date";
+import { updateWeeklyScore } from "@/lib/weeklyLogUtils"; // <-- add this
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,20 +13,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { currentUser } = await import("@clerk/nextjs/server");
     const user = await currentUser();
-
-    if (!user || !user.emailAddresses[0]?.emailAddress) {
+    const email = user?.emailAddresses?.[0]?.emailAddress;
+    if (!email) {
       return NextResponse.json(
         { error: "User email not found" },
         { status: 400 }
       );
     }
 
-    const dbUser = await prisma.user.findUnique({
-      where: { email: user.emailAddresses[0].emailAddress },
-    });
-
+    const dbUser = await prisma.user.findUnique({ where: { email } });
     if (!dbUser) {
       return NextResponse.json(
         { error: "User not found in database" },
@@ -32,18 +30,18 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Build week starts for current week back 11 weeks (12 points total), Monday start
+    const weekStartsOn: 0 | 1 | 2 | 3 | 4 | 5 | 6 = 1;
     const now = new Date();
-    const endDate = now;
-    const startDate = subWeeks(now, 11);
+    const endWeek = startOfWeek(now, { weekStartsOn });
+    const startWeek = startOfWeek(subWeeks(now, 11), { weekStartsOn });
 
     const weekStarts: string[] = [];
-    let current = startOfWeek(startDate, { weekStartsOn: 1 });
-    const last = startOfWeek(endDate, { weekStartsOn: 1 });
-    while (current <= last) {
-      weekStarts.push(formatISO(current, { representation: "date" }));
-      current = subWeeks(current, -1);
+    for (let cur = startWeek; cur <= endWeek; cur = addWeeks(cur, 1)) {
+      weekStarts.push(toDateString(cur)); // yyyy-MM-dd
     }
 
+    // Fetch persisted weekly logs (id + score) for range
     const weeklyLogs = await prisma.weeklyLog.findMany({
       where: {
         userId: dbUser.id,
@@ -52,19 +50,36 @@ export async function GET(req: NextRequest) {
           lte: weekStarts[weekStarts.length - 1],
         },
       },
-      select: {
-        startDate: true,
-        score: true,
-      },
+      select: { id: true, startDate: true, score: true },
     });
 
-    const scoreMap = Object.fromEntries(
-      weeklyLogs.map((log) => [log.startDate, log.score ?? 0])
-    );
+    // Index by startDate for O(1) lookups
+    const byStart: Record<string, { id: string; score: number | null }> = {};
+    for (const wl of weeklyLogs)
+      byStart[wl.startDate] = { id: wl.id, score: wl.score };
 
+    // Recompute only weeks that have a weeklyLog row but no score yet (fast self-heal)
+    const toRecompute = weeklyLogs.filter((wl) => wl.score == null);
+
+    if (toRecompute.length) {
+      await Promise.all(
+        toRecompute.map((wl) => updateWeeklyScore(wl.id).catch(() => null))
+      );
+
+      // Re-read updated scores JUST for those ids we recalculated
+      const refreshed = await prisma.weeklyLog.findMany({
+        where: { id: { in: toRecompute.map((w) => w.id) } },
+        select: { id: true, startDate: true, score: true },
+      });
+      for (const r of refreshed) {
+        byStart[r.startDate] = { id: r.id, score: r.score ?? 0 };
+      }
+    }
+
+    // Build response for every requested week (0 if no row exists)
     const data = weekStarts.map((week) => ({
       week,
-      totalScore: scoreMap[week] ?? 0,
+      totalScore: byStart[week]?.score ?? 0, // 0–100 per your current scoring rule
     }));
 
     return NextResponse.json({ data }, { status: 200 });

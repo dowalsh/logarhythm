@@ -22,8 +22,12 @@ import { fetcher } from "@/lib/swr";
 import { Pencil, ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import HabitScoreRow from "@/components/HabitScoreRow";
 import { parseDateOnly, toDateString } from "@/lib/date";
-import { getPointsPerCompletion, getScoreMax } from "@/lib/scoredHabitUtils";
 import { useUser, SignInButton } from "@clerk/nextjs";
+import {
+  computeWeeklyScores,
+  // clampTotalTo100,
+  toHabitScoreMap,
+} from "@/lib/scoredHabitUtils";
 
 interface Habit {
   id: string;
@@ -71,6 +75,23 @@ function getWeekDates(selectedDate: string) {
   return eachDayOfInterval({ start: weekStart, end: weekEnd }).map(
     toDateString
   );
+}
+
+async function recalcWeekScoreFor(selectedDate: string) {
+  const start = startOfWeek(parseDateOnly(selectedDate), { weekStartsOn: 1 });
+  const startDate = toDateString(start); // 'yyyy-MM-dd'
+
+  // fire-and-forget; you can await if you want to block the UI
+  try {
+    await fetch("/api/weekly-log/recalc", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ startDate }),
+    });
+  } catch (e) {
+    // swallow errors in MVP; score will refresh on next call anyway
+    console.error("recalc week failed", e);
+  }
 }
 
 function WeekSelector({
@@ -265,23 +286,12 @@ export default function LogPage() {
     activeHabits,
   ]);
 
-  // helpers
-  const getWeeklyCompletionCount = (habitId: string) =>
-    patchedWeeklyLogs.reduce((count, d) => {
-      const hl = d.habitLogs?.find((h) => h.habitId === habitId);
-      return count + (hl?.completed ? 1 : 0);
-    }, 0);
+  const { perHabit, totalScore, maxScoreAmongHabits } = useMemo(
+    () => computeWeeklyScores(activeHabits, patchedWeeklyLogs),
+    [activeHabits, patchedWeeklyLogs]
+  );
 
-  const totalScore = useMemo(() => {
-    if (!activeHabits.length) return 0;
-    return activeHabits.reduce((sum, habit) => {
-      const completions = getWeeklyCompletionCount(habit.habitId);
-      const target = habit.targetFrequency || 1;
-      const scoreMax = getScoreMax(habit, activeHabits);
-      const ratio = Math.min(completions / target, 1);
-      return sum + ratio * scoreMax;
-    }, 0);
-  }, [activeHabits, patchedWeeklyLogs]);
+  const perHabitMap = useMemo(() => toHabitScoreMap(perHabit), [perHabit]);
 
   const handleSubmit = async () => {
     setSaving(true);
@@ -301,6 +311,7 @@ export default function LogPage() {
       });
       if (!res.ok) throw new Error("Failed to submit log");
       toast.success("Log saved");
+      recalcWeekScoreFor(selectedDate);
       await mutateWeekly(); // single source of truth
       setIsEditing(false);
     } catch (e) {
@@ -379,53 +390,46 @@ export default function LogPage() {
 
         {activeHabits.length > 0 && (
           <div className="space-y-3 mb-6">
-            {(() => {
-              const maxScoreAmongHabits = Math.max(
-                ...activeHabits.map((h) => getScoreMax(h, activeHabits))
-              );
+            {activeHabits.map((sh) => {
+              const hs = perHabitMap[sh.habitId];
+              if (!hs) return null;
+
               const maxProgressBarWidth = 120;
+              const proportionalWidth =
+                hs.scoreMax > 0 && maxScoreAmongHabits > 0
+                  ? (hs.scoreMax / maxScoreAmongHabits) * maxProgressBarWidth
+                  : maxProgressBarWidth;
 
-              return activeHabits.map((sh) => {
-                const weeklyCompletions = getWeeklyCompletionCount(sh.habitId);
-                const target = sh.targetFrequency || 1;
-                const scoreMax = getScoreMax(sh, activeHabits);
-                const ratio = Math.min(weeklyCompletions / target, 1);
-                const weeklyScore = ratio * scoreMax;
-                const pointsPerCompletion = getPointsPerCompletion(
-                  sh,
-                  activeHabits
-                );
-                const proportionalWidth =
-                  (scoreMax / maxScoreAmongHabits) * maxProgressBarWidth;
-
-                return (
-                  <div key={sh.habitId} className="flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <HabitScoreRow
-                        habitName={sh.habit.name}
-                        pointsPerCompletion={pointsPerCompletion}
-                        progressCurrent={Math.min(weeklyCompletions, target)}
-                        progressMax={target}
-                        score={weeklyScore}
-                        scoreMax={scoreMax}
-                        progressBarWidth={proportionalWidth}
-                      />
-                    </div>
-                    <div className="flex-shrink-0">
-                      <Checkbox
-                        checked={!!logData[sh.habitId]}
-                        onCheckedChange={(checked) =>
-                          isEditing &&
-                          setLogData((d) => ({ ...d, [sh.habitId]: !!checked }))
-                        }
-                        disabled={!isEditing}
-                        className="w-5 h-5"
-                      />
-                    </div>
+              return (
+                <div key={sh.habitId} className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <HabitScoreRow
+                      habitName={hs.habitName || sh.habit.name}
+                      pointsPerCompletion={hs.pointsPerCompletion}
+                      progressCurrent={Math.min(
+                        hs.weeklyCompletions,
+                        hs.target
+                      )}
+                      progressMax={hs.target}
+                      score={hs.weeklyScore}
+                      scoreMax={hs.scoreMax}
+                      progressBarWidth={proportionalWidth}
+                    />
                   </div>
-                );
-              });
-            })()}
+                  <div className="flex-shrink-0">
+                    <Checkbox
+                      checked={!!logData[sh.habitId]}
+                      onCheckedChange={(checked) =>
+                        isEditing &&
+                        setLogData((d) => ({ ...d, [sh.habitId]: !!checked }))
+                      }
+                      disabled={!isEditing}
+                      className="w-5 h-5"
+                    />
+                  </div>
+                </div>
+              );
+            })}
 
             {/* TOTAL */}
             <div className="border-t pt-3 mt-4">

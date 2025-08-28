@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { startOfWeek, subWeeks, formatISO } from "date-fns";
 import { getStartOfWeek } from "@/lib/date";
-import { ensureWeeklyLog, calculateWeeklyScore } from "@/lib/weeklyLogUtils";
+import { ensureWeeklyLog, updateWeeklyScore } from "@/lib/weeklyLogUtils";
 
 export async function GET(req: NextRequest) {
   try {
@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
         )
       );
 
-      await calculateWeeklyScore(weeklyLog.id);
+      await updateWeeklyScore(weeklyLog.id);
     });
 
     return NextResponse.json({ success: true });
