@@ -1,8 +1,7 @@
 // /app/log/page.tsx
-
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   format,
   subDays,
@@ -12,8 +11,6 @@ import {
   eachDayOfInterval,
   addWeeks,
   subWeeks,
-  isSameDay,
-  isSameWeek,
 } from "date-fns";
 import useSWR from "swr";
 import { Input } from "@/components/ui/input";
@@ -24,14 +21,9 @@ import { toast } from "react-hot-toast";
 import { fetcher } from "@/lib/swr";
 import { Pencil, ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import HabitScoreRow from "@/components/HabitScoreRow";
-import { parseDateOnly, toDateString, isSameDate } from "@/lib/date";
+import { parseDateOnly, toDateString } from "@/lib/date";
 import { getPointsPerCompletion, getScoreMax } from "@/lib/scoredHabitUtils";
 import { useUser, SignInButton } from "@clerk/nextjs";
-
-// TODO: colours are broken on dark mode, fix this later
-// TODO: arrows on left and right to go back and forward a day
-// TODO: live score calculations
-// TODO: calendar style drop down
 
 interface Habit {
   id: string;
@@ -67,7 +59,7 @@ interface DailyLog {
   id: string;
   userId: string;
   scoringSystemId: string;
-  date: string;
+  date: string; // yyyy-MM-dd
   notes?: string;
   habitLogs: HabitLog[];
 }
@@ -76,7 +68,6 @@ function getWeekDates(selectedDate: string) {
   const date = parseDateOnly(selectedDate);
   const weekStart = startOfWeek(date, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
-  // Return array of date-only strings
   return eachDayOfInterval({ start: weekStart, end: weekEnd }).map(
     toDateString
   );
@@ -91,15 +82,8 @@ function WeekSelector({
   setSelectedDate: (date: string) => void;
   weeklyLogs: DailyLog[];
 }) {
-  const weekDates = getWeekDates(selectedDate); // now array of strings
+  const weekDates = getWeekDates(selectedDate);
   const dayLabels = ["M", "T", "W", "T", "F", "S", "S"];
-
-  // Debug: print weekDates and weeklyLogs
-  console.log("[WeekSelector] weekDates:", weekDates);
-  console.log(
-    "[WeekSelector] weeklyLogs:",
-    weeklyLogs.map((l) => l.date)
-  );
 
   const handlePrevWeek = () => {
     const prevWeek = subWeeks(parseDateOnly(selectedDate), 1);
@@ -110,13 +94,8 @@ function WeekSelector({
     setSelectedDate(toDateString(startOfWeek(nextWeek, { weekStartsOn: 1 })));
   };
 
-  // Helper to check if a log exists for a given date (now a string)
-  const hasLogForDate = (dateStr: string) => {
-    const found = weeklyLogs.some((log) => log.date === dateStr);
-    // Debug: print for each date
-    console.log(`[WeekSelector] hasLogForDate ${dateStr}:`, found);
-    return found;
-  };
+  const hasLogForDate = (dateStr: string) =>
+    weeklyLogs.some((log) => log.date === dateStr);
 
   return (
     <div className="flex items-center justify-center gap-1 sm:gap-2 my-4:my-6 px-2">
@@ -127,25 +106,23 @@ function WeekSelector({
       >
         <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
       </button>
+
       <div className="flex gap-1 p-2 flex-1 justify-center">
         {weekDates.map((dateStr, idx) => {
           const isSelected = dateStr === selectedDate;
           const hasLog = hasLogForDate(dateStr);
-          let buttonClass =
+          const base =
             "flex flex-col items-center justify-center w-8 h-10 sm:w-10 sm:h-12 rounded border transition-colors";
-          if (isSelected) {
-            buttonClass += "bg-primary text-primary border-primary ";
-          } else if (hasLog) {
-            buttonClass += "bg-green-100 text-green-800 border-green-400 ";
-          } else {
-            buttonClass +=
-              "bg-muted text-muted-foreground border-border hover:bg-accent ";
-          }
+          const variant = isSelected
+            ? " bg-primary text-primary-foreground border-primary"
+            : hasLog
+            ? " bg-green-100 text-green-800 border-green-400"
+            : " bg-muted text-muted-foreground border-border hover:bg-accent";
           return (
             <button
               key={dateStr}
               onClick={() => setSelectedDate(dateStr)}
-              className={buttonClass}
+              className={base + variant}
               aria-label={`Select ${dayLabels[idx]} ${dateStr.slice(8, 10)}`}
             >
               <span className="font-bold text-xs sm:text-base">
@@ -158,6 +135,7 @@ function WeekSelector({
           );
         })}
       </div>
+
       <button
         onClick={handleNextWeek}
         className="p-2 rounded hover:bg-muted"
@@ -171,7 +149,6 @@ function WeekSelector({
 
 export default function LogPage() {
   const { isSignedIn } = useUser();
-
   if (!isSignedIn) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh]">
@@ -185,38 +162,32 @@ export default function LogPage() {
     );
   }
 
+  // --- state
   const today = toDateString(new Date());
   const [selectedDate, setSelectedDate] = useState<string>(today);
   const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [logData, setLogData] = useState<Record<string, number | boolean>>({});
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
 
+  // --- data
   const { data: scoringSystems, error: scoringError } = useSWR<ScoringSystem[]>(
     "/api/scoring-systems",
     fetcher
   );
-  const [logData, setLogData] = useState<Record<string, number | boolean>>({});
-  const [notes, setNotes] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  // Get the current week's date range
-  const weekStart = startOfWeek(parseDateOnly(selectedDate), {
-    weekStartsOn: 1,
-  });
-  const weekEnd = endOfWeek(parseDateOnly(selectedDate), { weekStartsOn: 1 });
+  const { weekStart, weekEnd } = useMemo(() => {
+    const start = startOfWeek(parseDateOnly(selectedDate), { weekStartsOn: 1 });
+    const end = endOfWeek(parseDateOnly(selectedDate), { weekStartsOn: 1 });
+    return { weekStart: start, weekEnd: end };
+  }, [selectedDate]);
 
-  // Fetch current day's log
   const {
-    data: existingLog,
-    mutate,
-    error: logError,
-  } = useSWR(selectedDate ? `/api/logs?date=${selectedDate}` : null, fetcher);
-
-  // Get active scoring system and its habits
-  const activeScoringSystem = scoringSystems?.find((system) => system.isActive);
-  const activeHabits = activeScoringSystem?.habits || [];
-
-  // Fetch all logs for the current week
-  const { data: weeklyLogs, error: weeklyLogError } = useSWR(
-    activeScoringSystem
+    data: weeklyLogsResp,
+    mutate: mutateWeekly,
+    error: weeklyLogError,
+  } = useSWR(
+    scoringSystems
       ? `/api/logs/week?start=${toDateString(weekStart)}&end=${toDateString(
           weekEnd
         )}`
@@ -224,28 +195,96 @@ export default function LogPage() {
     fetcher
   );
 
+  const activeScoringSystem = useMemo(
+    () => scoringSystems?.find((s) => s.isActive),
+    [scoringSystems]
+  );
+
+  const activeHabits = activeScoringSystem?.habits || [];
+  const weeklyLogs: DailyLog[] = weeklyLogsResp?.logs || [];
+
+  // find the selected day's log from the week payload
+  const selectedDayLog: DailyLog | undefined = useMemo(
+    () => weeklyLogs.find((l) => l.date === selectedDate),
+    [weeklyLogs, selectedDate]
+  );
+
+  // seed local form state whenever the selected day changes or data loads
   useEffect(() => {
-    const logDataObj =
-      existingLog?.log === undefined ? existingLog : existingLog?.log;
-    if (logDataObj) {
-      setNotes(logDataObj.notes || "");
+    if (selectedDayLog) {
+      setNotes(selectedDayLog.notes || "");
       const filled: Record<string, number | boolean> = {};
-      if (Array.isArray(logDataObj.habitLogs)) {
-        for (const entry of logDataObj.habitLogs) {
-          filled[entry.habitId] = entry.completed ?? entry.value ?? "";
-        }
+      for (const hl of selectedDayLog.habitLogs || []) {
+        filled[hl.habitId] = hl.completed ?? hl.value ?? 0;
       }
       setLogData(filled);
       setIsEditing(false);
     } else {
+      // no log exists for the day yet => start in edit mode
       setNotes("");
       setLogData({});
       setIsEditing(true);
     }
-  }, [existingLog]);
+  }, [selectedDayLog]);
+
+  // patched weekly logs (live preview including current edits on the selected day)
+  const patchedWeeklyLogs: DailyLog[] = useMemo(() => {
+    if (!activeScoringSystem) return [];
+    const base = weeklyLogs.slice();
+    const virtual: DailyLog = {
+      id: selectedDayLog?.id || "virtual",
+      userId: selectedDayLog?.userId || "virtual",
+      scoringSystemId: activeScoringSystem.id,
+      date: selectedDate,
+      notes,
+      habitLogs: activeHabits.map((sh) => {
+        const val = logData[sh.habitId];
+        return {
+          id: selectedDayLog
+            ? selectedDayLog.habitLogs.find((h) => h.habitId === sh.habitId)
+                ?.id || `virtual-${sh.habitId}`
+            : `virtual-${sh.habitId}`,
+          dailyLogId: selectedDayLog?.id || "virtual",
+          habitId: sh.habitId,
+          value: typeof val === "number" ? val : undefined,
+          completed: typeof val === "boolean" ? val : undefined,
+        };
+      }),
+    };
+    const idx = base.findIndex((d) => d.date === selectedDate);
+    if (idx >= 0) base[idx] = virtual;
+    else base.push(virtual);
+    return base;
+  }, [
+    activeScoringSystem,
+    weeklyLogs,
+    selectedDayLog,
+    selectedDate,
+    notes,
+    logData,
+    activeHabits,
+  ]);
+
+  // helpers
+  const getWeeklyCompletionCount = (habitId: string) =>
+    patchedWeeklyLogs.reduce((count, d) => {
+      const hl = d.habitLogs?.find((h) => h.habitId === habitId);
+      return count + (hl?.completed ? 1 : 0);
+    }, 0);
+
+  const totalScore = useMemo(() => {
+    if (!activeHabits.length) return 0;
+    return activeHabits.reduce((sum, habit) => {
+      const completions = getWeeklyCompletionCount(habit.habitId);
+      const target = habit.targetFrequency || 1;
+      const scoreMax = getScoreMax(habit, activeHabits);
+      const ratio = Math.min(completions / target, 1);
+      return sum + ratio * scoreMax;
+    }, 0);
+  }, [activeHabits, patchedWeeklyLogs]);
 
   const handleSubmit = async () => {
-    setLoading(true);
+    setSaving(true);
     try {
       const res = await fetch("/api/logs", {
         method: "POST",
@@ -260,121 +299,31 @@ export default function LogPage() {
           ),
         }),
       });
-
       if (!res.ok) throw new Error("Failed to submit log");
       toast.success("Log saved");
-      mutate(); // refresh daily log
-      // Also refresh weekly logs
-      if (activeScoringSystem) {
-        const weekStartStr = toDateString(weekStart);
-        const weekEndStr = toDateString(weekEnd);
-        mutate(`/api/logs/week?start=${weekStartStr}&end=${weekEndStr}`);
-      }
+      await mutateWeekly(); // single source of truth
       setIsEditing(false);
-    } catch (err) {
+    } catch (e) {
       toast.error("Error saving log");
-      console.error("Error submitting log:", err);
+      console.error(e);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  const recentDates = Array.from({ length: 5 }, (_, i) => {
-    const d = subDays(startOfToday(), i);
-    return format(d, "yyyy-MM-dd");
-  });
-
-  const isToday = selectedDate === today;
-  const hasExistingLog = !!existingLog;
+  const recentDates = Array.from({ length: 5 }, (_, i) =>
+    format(subDays(startOfToday(), i), "yyyy-MM-dd")
+  );
   const isLoading = !scoringSystems && !scoringError;
-
-  // Helper: create a virtual DailyLog for the selected day using current logData
-  function getVirtualDailyLog(): DailyLog | null {
-    if (!activeScoringSystem) return null;
-    return {
-      id: existingLog?.log?.id || existingLog?.id || "virtual",
-      userId: existingLog?.log?.userId || existingLog?.userId || "virtual",
-      scoringSystemId: activeScoringSystem.id,
-      date: selectedDate,
-      notes: notes,
-      habitLogs: activeHabits.map((scoredHabit) => {
-        const val = logData[scoredHabit.habitId];
-        return {
-          id: "virtual-" + scoredHabit.habitId,
-          dailyLogId: existingLog?.log?.id || existingLog?.id || "virtual",
-          habitId: scoredHabit.habitId,
-          value: typeof val === "number" ? val : undefined,
-          completed: typeof val === "boolean" ? val : undefined,
-        };
-      }),
-    };
-  }
-
-  // Helper: get weekly logs, but override selected day with virtual logData
-  function getPatchedWeeklyLogs(): DailyLog[] {
-    if (!weeklyLogs?.logs) return [];
-    const virtualLog = getVirtualDailyLog();
-    // Replace the log for selectedDate with the virtual one
-    let replaced = false;
-    const patched = weeklyLogs.logs.map((log: DailyLog) => {
-      if (log.date === selectedDate && virtualLog) {
-        replaced = true;
-        return virtualLog;
-      }
-      return log;
-    });
-    // If no log existed for selectedDate, add the virtual one
-    if (!replaced && virtualLog) {
-      patched.push(virtualLog);
-    }
-    return patched;
-  }
-
-  const getWeeklyProgressSegments = (scoredHabit: ScoredHabit) => {
-    const weeklyCompletions = getWeeklyCompletionCount(scoredHabit.habitId);
-    const target = scoredHabit.targetFrequency || 1;
-    return Math.min(weeklyCompletions, target);
-  };
-
-  const getWeeklyCompletionCount = (habitId: string) => {
-    const logs = getPatchedWeeklyLogs();
-    if (!logs) return 0;
-    return logs.reduce((count: number, dayLog: DailyLog) => {
-      const habitLog = dayLog.habitLogs?.find(
-        (hl: HabitLog) => hl.habitId === habitId
-      );
-      return count + (habitLog?.completed ? 1 : 0);
-    }, 0);
-  };
-
-  // Calculate weekly score for a habit
-  const calculateWeeklyHabitScore = (scoredHabit: ScoredHabit) => {
-    const weeklyCompletions = getWeeklyCompletionCount(scoredHabit.habitId);
-    const target = scoredHabit.targetFrequency || 1;
-
-    // Linear scoring relative to target, capped at target
-    const completionRatio = Math.min(weeklyCompletions / target, 1);
-    return Math.round(completionRatio * scoredHabit.weight);
-  };
 
   return (
     <div className="max-w-4xl mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
-      {/* Weekly Score Display
-      {activeHabits.length > 0 && (
-        <WeeklyScoreDisplay
-          scoredHabits={activeHabits}
-          weeklyLogs={weeklyLogs?.logs || []}
-        />
-      )} */}
-
-      {/* Week Selector */}
       <WeekSelector
         selectedDate={selectedDate}
         setSelectedDate={setSelectedDate}
-        weeklyLogs={weeklyLogs?.logs || []}
+        weeklyLogs={weeklyLogs}
       />
 
-      {/* Daily Log Form */}
       <div className="rounded-md border shadow-sm p-4 sm:p-6">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <div className="flex items-center gap-2">
@@ -399,15 +348,6 @@ export default function LogPage() {
             </p>
           </div>
         )}
-
-        {logError && (
-          <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md mb-4">
-            <p className="text-sm text-destructive">
-              Error loading log data. Please try refreshing the page.
-            </p>
-          </div>
-        )}
-
         {weeklyLogError && (
           <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md mb-4">
             <p className="text-sm text-destructive">
@@ -415,7 +355,6 @@ export default function LogPage() {
             </p>
           </div>
         )}
-
         {isLoading && (
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -431,49 +370,41 @@ export default function LogPage() {
             section.
           </p>
         )}
-        {!isLoading && activeHabits.length === 0 && activeScoringSystem && (
+        {!isLoading && activeScoringSystem && activeHabits.length === 0 && (
           <p className="text-sm text-muted">
             No habits in your active scoring system. Add some habits to get
             started.
           </p>
         )}
 
-        {/* Compact Table Format */}
         {activeHabits.length > 0 && (
           <div className="space-y-3 mb-6">
             {(() => {
-              // Calculate the maximum score among all habits to determine the baseline width
               const maxScoreAmongHabits = Math.max(
-                ...activeHabits.map((habit) => getScoreMax(habit, activeHabits))
+                ...activeHabits.map((h) => getScoreMax(h, activeHabits))
               );
-              // Use fixed 120px width since mobile now uses two-row layout
               const maxProgressBarWidth = 120;
-              return activeHabits.map((scoredHabit: ScoredHabit) => {
-                const weeklyCompletions = getWeeklyCompletionCount(
-                  scoredHabit.habitId
-                );
-                const target = scoredHabit.targetFrequency || 1;
-                const scoreMax = getScoreMax(scoredHabit, activeHabits);
-                const completionRatio = Math.min(weeklyCompletions / target, 1);
-                const weeklyScore = completionRatio * scoreMax;
-                const weeklyProgress = getWeeklyProgressSegments(scoredHabit);
+
+              return activeHabits.map((sh) => {
+                const weeklyCompletions = getWeeklyCompletionCount(sh.habitId);
+                const target = sh.targetFrequency || 1;
+                const scoreMax = getScoreMax(sh, activeHabits);
+                const ratio = Math.min(weeklyCompletions / target, 1);
+                const weeklyScore = ratio * scoreMax;
                 const pointsPerCompletion = getPointsPerCompletion(
-                  scoredHabit,
+                  sh,
                   activeHabits
                 );
-                // Calculate proportional width based on this habit's max score
                 const proportionalWidth =
                   (scoreMax / maxScoreAmongHabits) * maxProgressBarWidth;
+
                 return (
-                  <div
-                    key={scoredHabit.habitId}
-                    className="flex items-center gap-3"
-                  >
+                  <div key={sh.habitId} className="flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                       <HabitScoreRow
-                        habitName={scoredHabit.habit.name}
+                        habitName={sh.habit.name}
                         pointsPerCompletion={pointsPerCompletion}
-                        progressCurrent={weeklyProgress}
+                        progressCurrent={Math.min(weeklyCompletions, target)}
                         progressMax={target}
                         score={weeklyScore}
                         scoreMax={scoreMax}
@@ -482,13 +413,10 @@ export default function LogPage() {
                     </div>
                     <div className="flex-shrink-0">
                       <Checkbox
-                        checked={!!logData[scoredHabit.habitId]}
+                        checked={!!logData[sh.habitId]}
                         onCheckedChange={(checked) =>
                           isEditing &&
-                          setLogData((d) => ({
-                            ...d,
-                            [scoredHabit.habitId]: !!checked,
-                          }))
+                          setLogData((d) => ({ ...d, [sh.habitId]: !!checked }))
                         }
                         disabled={!isEditing}
                         className="w-5 h-5"
@@ -498,7 +426,8 @@ export default function LogPage() {
                 );
               });
             })()}
-            {/* TOTAL Bar */}
+
+            {/* TOTAL */}
             <div className="border-t pt-3 mt-4">
               <div className="grid grid-cols-12 gap-2 items-center text-sm font-semibold">
                 <div className="col-span-3 text-right text-xs sm:text-sm">
@@ -506,24 +435,6 @@ export default function LogPage() {
                 </div>
                 <div className="col-span-6">
                   {(() => {
-                    // Calculate the current total score using patched weekly logs (live with checkbox changes)
-                    const patchedLogs = getPatchedWeeklyLogs();
-                    const totalScore = activeHabits.reduce((sum, habit) => {
-                      const completions = patchedLogs.reduce(
-                        (count, dayLog) => {
-                          const habitLog = dayLog.habitLogs?.find(
-                            (hl) => hl.habitId === habit.habitId
-                          );
-                          return count + (habitLog?.completed ? 1 : 0);
-                        },
-                        0
-                      );
-                      const target = habit.targetFrequency || 1;
-                      const scoreMax = getScoreMax(habit, activeHabits);
-                      const completionRatio = Math.min(completions / target, 1);
-                      const habitScore = completionRatio * scoreMax;
-                      return sum + habitScore;
-                    }, 0);
                     const maxScore = 100;
                     const percent =
                       maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
@@ -538,35 +449,10 @@ export default function LogPage() {
                   })()}
                 </div>
                 <div className="col-span-3 text-right text-xs sm:text-sm">
-                  {(() => {
-                    const patchedLogs = getPatchedWeeklyLogs();
-                    const totalScore = activeHabits.reduce((sum, habit) => {
-                      const completions = patchedLogs.reduce(
-                        (count, dayLog) => {
-                          const habitLog = dayLog.habitLogs?.find(
-                            (hl) => hl.habitId === habit.habitId
-                          );
-                          return count + (habitLog?.completed ? 1 : 0);
-                        },
-                        0
-                      );
-                      const target = habit.targetFrequency || 1;
-                      const scoreMax = getScoreMax(habit, activeHabits);
-                      const completionRatio = Math.min(completions / target, 1);
-                      const habitScore = completionRatio * scoreMax;
-                      return sum + habitScore;
-                    }, 0);
-                    const maxScore = 100;
-                    return (
-                      <span>
-                        {Math.round(totalScore)}/{maxScore}
-                      </span>
-                    );
-                  })()}
+                  <span>{Math.round(totalScore)}/100</span>
                 </div>
               </div>
             </div>
-            {/* END TOTAL Bar */}
           </div>
         )}
 
@@ -581,10 +467,10 @@ export default function LogPage() {
         {isEditing && (
           <Button
             onClick={handleSubmit}
-            disabled={loading}
+            disabled={saving}
             className="mt-4 w-full bg-green-600 text-white hover:bg-green-700 h-12 sm:h-10 text-base"
           >
-            {loading ? "Saving..." : "Submit"}
+            {saving ? "Saving..." : "Submit"}
           </Button>
         )}
       </div>
