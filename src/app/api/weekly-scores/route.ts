@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { startOfWeek, addWeeks, subWeeks } from "date-fns";
 import { toDateString } from "@/lib/date";
 import { updateWeeklyScore } from "@/lib/weeklyLogUtils"; // <-- add this
+import { WeeklyScore } from "@/components/WeeklyScoreChart";
 
 export async function GET(req: NextRequest) {
   try {
@@ -50,13 +51,26 @@ export async function GET(req: NextRequest) {
           lte: weekStarts[weekStarts.length - 1],
         },
       },
-      select: { id: true, startDate: true, score: true },
+      select: {
+        id: true,
+        startDate: true,
+        score: true,
+        ScoringSystem: { select: { name: true } },
+      },
     });
 
-    // Index by startDate for O(1) lookups
-    const byStart: Record<string, { id: string; score: number | null }> = {};
+    type ByStartVal = {
+      id: string;
+      score: number | null;
+      scoringSystemName?: string;
+    };
+    const byStart: Record<string, ByStartVal> = {};
     for (const wl of weeklyLogs)
-      byStart[wl.startDate] = { id: wl.id, score: wl.score };
+      byStart[wl.startDate] = {
+        id: wl.id,
+        score: wl.score,
+        scoringSystemName: wl.ScoringSystem?.name,
+      };
 
     // Recompute only weeks that have a weeklyLog row but no score yet (fast self-heal)
     const toRecompute = weeklyLogs.filter((wl) => wl.score == null);
@@ -66,21 +80,40 @@ export async function GET(req: NextRequest) {
         toRecompute.map((wl) => updateWeeklyScore(wl.id).catch(() => null))
       );
 
-      // Re-read updated scores JUST for those ids we recalculated
+      // 3) Re-read updated scores (and name, to be safe)
       const refreshed = await prisma.weeklyLog.findMany({
         where: { id: { in: toRecompute.map((w) => w.id) } },
-        select: { id: true, startDate: true, score: true },
+        select: {
+          id: true,
+          startDate: true,
+          score: true,
+          ScoringSystem: { select: { name: true } },
+        },
       });
+
       for (const r of refreshed) {
-        byStart[r.startDate] = { id: r.id, score: r.score ?? 0 };
+        byStart[r.startDate] = {
+          id: r.id,
+          score: r.score ?? 0,
+          scoringSystemName:
+            r.ScoringSystem?.name ?? byStart[r.startDate]?.scoringSystemName,
+        };
       }
     }
 
     // Build response for every requested week (0 if no row exists)
-    const data = weekStarts.map((week) => ({
+    const data: WeeklyScore[] = weekStarts.map((week) => ({
       week,
-      totalScore: byStart[week]?.score ?? 0, // 0–100 per your current scoring rule
+      totalScore: Number(byStart[week]?.score ?? 0), // 0–100
+      scoringSystemName: byStart[week]?.scoringSystemName ?? "", // <- string for tooltip
     }));
+
+    // // print every scoring system name to console for debugging
+    // data.forEach((d) => {
+    //   console.log(
+    //     `Week: ${d.week}, Score: ${d.totalScore}, Name: ${d.scoringSystemName}`
+    //   );
+    // });
 
     return NextResponse.json({ data }, { status: 200 });
   } catch (error) {

@@ -23,6 +23,7 @@ import {
 export type WeeklyScore = {
   week: string; // e.g., "2024-07-01"
   totalScore: number;
+  scoringSystemName: string; // e.g., "system1"
 };
 
 interface WeeklyScoreAreaChartProps {
@@ -82,18 +83,33 @@ export function WeeklyScoreChart({ data }: WeeklyScoreAreaChartProps) {
               cursor={false}
               content={
                 <ChartTooltipContent
+                  indicator="dot"
                   labelFormatter={(value) => {
-                    const date = new Date(value);
+                    const date = new Date(value as string);
                     return date.toLocaleDateString("en-US", {
                       month: "short",
                       day: "numeric",
                     });
                   }}
-                  indicator="dot"
+                  formatter={(value, name, item) => (
+                    <div className="w-full">
+                      {/* score row */}
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-center leading-none">
+                        <span className="text-muted-foreground truncate">
+                          Score:
+                        </span>
+                        <span className="text-foreground font-mono font-medium tabular-nums text-right">
+                          {Number(value).toFixed(0)}%
+                        </span>
+                      </div>
+                      {item?.payload?.scoringSystemName && (
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          System: {item.payload.scoringSystemName}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 />
-              }
-              formatter={(value: number) =>
-                `Score: ${Number(value).toFixed(0)}%`
               }
             />
 
