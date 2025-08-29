@@ -106,12 +106,12 @@ export async function GET(req: NextRequest) {
     });
 
     // Debug: Log the first scoring system to see what fields are included
-    if (scoringSystems.length > 0 && scoringSystems[0].habits.length > 0) {
-      console.log(
-        "First scored habit:",
-        JSON.stringify(scoringSystems[0].habits[0], null, 2)
-      );
-    }
+    // if (scoringSystems.length > 0 && scoringSystems[0].habits.length > 0) {
+    //   console.log(
+    //     "First scored habit:",
+    //     JSON.stringify(scoringSystems[0].habits[0], null, 2)
+    //   );
+    // }
 
     return NextResponse.json(scoringSystems, { status: 200 });
   } catch (error) {

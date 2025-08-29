@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -79,7 +79,7 @@ model HabitLog {
   habitId    String
   value      Float?
   completed  Boolean?
-  dailyLog   DailyLog @relation(fields: [dailyLogId], references: [id])
+  dailyLog   DailyLog @relation(fields: [dailyLogId], references: [id], onDelete: Cascade) // ⬅ add this
   habit      Habit    @relation(fields: [habitId], references: [id])
 
   @@unique([dailyLogId, habitId])
@@ -115,7 +115,6 @@ model WeeklyLog {
   @@unique([userId, startDate], map: "Week_userId_startDate_key")
   @@index([startDate], map: "Week_startDate_idx")
 }
-
 
 enum HabitScoringType {
   LINEAR_POSITIVE_CAPPED
