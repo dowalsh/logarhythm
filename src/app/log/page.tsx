@@ -27,7 +27,7 @@ import {
   computeWeeklyScores,
   // clampTotalTo100,
   toHabitScoreMap,
-} from "@/lib/scoredHabitUtils";
+} from "@/lib/scoringUtils";
 
 interface Habit {
   id: string;

@@ -37,7 +37,6 @@ model ScoringSystem {
   name      String
   isActive  Boolean       @default(true)
   createdAt DateTime      @default(now())
-  dailyLogs DailyLog[]
   habits    ScoredHabit[]
   user      User          @relation(fields: [userId], references: [id])
   WeeklyLog WeeklyLog[]
@@ -57,17 +56,16 @@ model ScoredHabit {
 }
 
 model DailyLog {
-  id              String        @id @default(cuid())
-  userId          String
-  date            String
-  notes           String?
-  createdAt       DateTime      @default(now())
-  scoringSystemId String
-  weeklyLogId     String
-  scoringSystem   ScoringSystem @relation(fields: [scoringSystemId], references: [id])
-  user            User          @relation(fields: [userId], references: [id])
-  weeklyLog       WeeklyLog     @relation(fields: [weeklyLogId], references: [id])
-  habitLogs       HabitLog[]
+  id          String   @id @default(cuid())
+  userId      String
+  date        String
+  notes       String?
+  createdAt   DateTime @default(now())
+  weeklyLogId String
+
+  user      User       @relation(fields: [userId], references: [id])
+  weeklyLog WeeklyLog  @relation(fields: [weeklyLogId], references: [id], onDelete: Cascade)
+  habitLogs HabitLog[]
 
   @@unique([userId, date])
   @@index([weeklyLogId])
@@ -79,22 +77,24 @@ model HabitLog {
   habitId    String
   value      Float?
   completed  Boolean?
-  dailyLog   DailyLog @relation(fields: [dailyLogId], references: [id], onDelete: Cascade) // ⬅ add this
-  habit      Habit    @relation(fields: [habitId], references: [id])
+
+  dailyLog DailyLog @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+  habit    Habit    @relation(fields: [habitId], references: [id])
 
   @@unique([dailyLogId, habitId])
   @@index([habitId])
 }
 
 model Modifier {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   userId      String
   label       String
   value       Float
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime @default(now())
   weeklyLogId String
-  user        User      @relation(fields: [userId], references: [id])
-  weeklyLog   WeeklyLog @relation(fields: [weeklyLogId], references: [id])
+
+  user      User      @relation(fields: [userId], references: [id])
+  weeklyLog WeeklyLog @relation(fields: [weeklyLogId], references: [id], onDelete: Cascade)
 
   @@index([weeklyLogId])
 }

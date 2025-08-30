@@ -1,7 +1,7 @@
 // lib/weeklyLogUtils.ts
 import { prisma } from "@/lib/prisma";
 import { getStartOfWeek } from "@/lib/date"; // returns 'yyyy-MM-dd'
-import { computeWeeklyScores } from "@/lib/scoredHabitUtils";
+import { computeWeeklyScores } from "@/lib/scoringUtils";
 
 export async function ensureWeeklyLog(
   userId: string,

@@ -5,4 +5,4 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export { getPointsPerCompletion } from "./scoredHabitUtils";
+export { getPointsPerCompletion } from "./scoringUtils";
