@@ -13,21 +13,33 @@ import {
   subWeeks,
 } from "date-fns";
 import useSWR from "swr";
-import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "react-hot-toast";
 import { fetcher } from "@/lib/swr";
 import { Pencil, ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import HabitScoreRow from "@/components/HabitScoreRow";
 import { parseDateOnly, toDateString } from "@/lib/date";
 import { useUser, SignInButton } from "@clerk/nextjs";
-import {
-  computeWeeklyScores,
-  // clampTotalTo100,
-  toHabitScoreMap,
-} from "@/lib/scoringUtils";
+import { computeWeeklyScores, toHabitScoreMap } from "@/lib/scoringUtils";
 
 interface Habit {
   id: string;
@@ -83,7 +95,7 @@ async function recalcWeekScoreFor(selectedDate: string) {
 
   // fire-and-forget; you can await if you want to block the UI
   try {
-    await fetch("/api/weekly-log/recalc", {
+    fetch("/api/weekly-log/recalc", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ startDate }),
@@ -168,6 +180,13 @@ function WeekSelector({
   );
 }
 
+const postJSON = (url: string, body?: any) =>
+  fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body ?? {}),
+  }).then((r) => r.json());
+
 export default function LogPage() {
   const { isSignedIn } = useUser();
   if (!isSignedIn) {
@@ -190,47 +209,61 @@ export default function LogPage() {
   const [logData, setLogData] = useState<Record<string, number | boolean>>({});
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [pendingSystemId, setPendingSystemId] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // --- data
-  const { data: scoringSystems, error: scoringError } = useSWR<ScoringSystem[]>(
-    "/api/scoring-systems",
-    fetcher
-  );
-
+  // --- week range
   const { weekStart, weekEnd } = useMemo(() => {
     const start = startOfWeek(parseDateOnly(selectedDate), { weekStartsOn: 1 });
     const end = endOfWeek(parseDateOnly(selectedDate), { weekStartsOn: 1 });
     return { weekStart: start, weekEnd: end };
   }, [selectedDate]);
 
+  const weekStartStr = useMemo(() => toDateString(weekStart), [weekStart]);
+
+  // 1) Ensure WeeklyLog for the week and get its ScoringSystem (+habits)
+  const {
+    data: weekMeta,
+    error: weekMetaError,
+    isLoading: isEnsuringWeek,
+    mutate: mutateWeekMeta,
+  } = useSWR(
+    weekStartStr ? ["/api/weekly-log/ensure", weekStartStr] : null,
+    ([url, startDate]) => postJSON(url, { startDate })
+  );
+
+  const weekScoringSystem: ScoringSystem | undefined =
+    weekMeta?.weeklyLog?.ScoringSystem;
+  const weekHabits: ScoredHabit[] = weekScoringSystem?.habits ?? [];
+
+  // 1.5) Fetch all scoring systems
+  const { data: systemsResp } = useSWR<ScoringSystem[]>(
+    "/api/scoring-systems",
+    fetcher
+  );
+  const systems = systemsResp ?? [];
+
+  // 2) Fetch daily logs for the week (independent of scoring systems now)
   const {
     data: weeklyLogsResp,
     mutate: mutateWeekly,
     error: weeklyLogError,
   } = useSWR(
-    scoringSystems
-      ? `/api/logs/week?start=${toDateString(weekStart)}&end=${toDateString(
-          weekEnd
-        )}`
-      : null,
+    `/api/logs/week?start=${toDateString(weekStart)}&end=${toDateString(
+      weekEnd
+    )}`,
     fetcher
   );
-
-  const activeScoringSystem = useMemo(
-    () => scoringSystems?.find((s) => s.isActive),
-    [scoringSystems]
-  );
-
-  const activeHabits = activeScoringSystem?.habits || [];
   const weeklyLogs: DailyLog[] = weeklyLogsResp?.logs || [];
+  const hasDailyLogs = weeklyLogs.length > 0;
 
-  // find the selected day's log from the week payload
+  // Selected day log from the fetched week
   const selectedDayLog: DailyLog | undefined = useMemo(
     () => weeklyLogs.find((l) => l.date === selectedDate),
     [weeklyLogs, selectedDate]
   );
 
-  // seed local form state whenever the selected day changes or data loads
+  // Seed local form state whenever the selected day changes or data loads
   useEffect(() => {
     if (selectedDayLog) {
       setNotes(selectedDayLog.notes || "");
@@ -248,17 +281,17 @@ export default function LogPage() {
     }
   }, [selectedDayLog]);
 
-  // patched weekly logs (live preview including current edits on the selected day)
+  // Patched weekly logs (live preview for selected day) based on the week's scoring system
   const patchedWeeklyLogs: DailyLog[] = useMemo(() => {
-    if (!activeScoringSystem) return [];
+    if (!weekScoringSystem) return [];
     const base = weeklyLogs.slice();
     const virtual: DailyLog = {
       id: selectedDayLog?.id || "virtual",
       userId: selectedDayLog?.userId || "virtual",
-      scoringSystemId: activeScoringSystem.id,
+      scoringSystemId: weekScoringSystem.id,
       date: selectedDate,
       notes,
-      habitLogs: activeHabits.map((sh) => {
+      habitLogs: weekHabits.map((sh) => {
         const val = logData[sh.habitId];
         return {
           id: selectedDayLog
@@ -277,30 +310,39 @@ export default function LogPage() {
     else base.push(virtual);
     return base;
   }, [
-    activeScoringSystem,
+    weekScoringSystem,
+    weekHabits,
     weeklyLogs,
     selectedDayLog,
     selectedDate,
     notes,
     logData,
-    activeHabits,
   ]);
 
+  // Compute scores using weekHabits
   const { perHabit, totalScore, maxScoreAmongHabits } = useMemo(
-    () => computeWeeklyScores(activeHabits, patchedWeeklyLogs),
-    [activeHabits, patchedWeeklyLogs]
+    () => computeWeeklyScores(weekHabits, patchedWeeklyLogs),
+    [weekHabits, patchedWeeklyLogs]
   );
-
   const perHabitMap = useMemo(() => toHabitScoreMap(perHabit), [perHabit]);
 
+  // Save
   const handleSubmit = async () => {
     setSaving(true);
     try {
+      const weeklyLogId = weekMeta?.weeklyLog?.id;
+      if (!weeklyLogId) {
+        toast.error("Week isn’t ready yet. Try again in a moment.");
+        setSaving(false);
+        return;
+      }
+
       const res = await fetch("/api/logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          date: selectedDate,
+          date: selectedDate, // yyyy-MM-dd (day you’re saving)
+          weeklyLogId, // ⬅️ send this
           notes,
           logs: Object.entries(logData).map(([habitId, val]) =>
             typeof val === "boolean"
@@ -309,10 +351,11 @@ export default function LogPage() {
           ),
         }),
       });
+
       if (!res.ok) throw new Error("Failed to submit log");
       toast.success("Log saved");
       recalcWeekScoreFor(selectedDate);
-      await mutateWeekly(); // single source of truth
+      await Promise.all([mutateWeekly(), mutateWeekMeta()]);
       setIsEditing(false);
     } catch (e) {
       toast.error("Error saving log");
@@ -325,7 +368,40 @@ export default function LogPage() {
   const recentDates = Array.from({ length: 5 }, (_, i) =>
     format(subDays(startOfToday(), i), "yyyy-MM-dd")
   );
-  const isLoading = !scoringSystems && !scoringError;
+
+  const handleSystemChange = (newId: string) => {
+    // If this week already has daily logs, ask for confirmation
+    if (hasDailyLogs) {
+      setPendingSystemId(newId);
+      setConfirmOpen(true);
+    } else {
+      // No logs → switch immediately
+      void applySystemChange(newId, /*deleteDailyLogs*/ false);
+    }
+  };
+
+  const applySystemChange = async (newId: string, deleteDailyLogs: boolean) => {
+    try {
+      const res = await postJSON("/api/weekly-log/change-system", {
+        startDate: weekStartStr,
+        scoringSystemId: newId,
+        deleteDailyLogs,
+      });
+      if (res?.error) throw new Error(res.error);
+
+      toast.success("Scoring system updated for this week");
+
+      // revalidate both week meta (system + habits) and the daily logs list
+      await Promise.all([mutateWeekMeta(), mutateWeekly()]);
+      recalcWeekScoreFor(selectedDate);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to update scoring system");
+    } finally {
+      setConfirmOpen(false);
+      setPendingSystemId(null);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
@@ -352,45 +428,62 @@ export default function LogPage() {
           )}
         </div>
 
-        {scoringError && (
+        {weekMetaError && (
           <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md mb-4">
             <p className="text-sm text-destructive">
-              Error loading scoring systems. Please try refreshing the page.
+              Error ensuring scoring system for this week.
             </p>
           </div>
         )}
         {weeklyLogError && (
           <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md mb-4">
             <p className="text-sm text-destructive">
-              Error loading weekly data. Please try refreshing the page.
+              Error loading weekly data. Please refresh.
             </p>
           </div>
         )}
-        {isLoading && (
+        {isEnsuringWeek && (
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             <span className="ml-2 text-sm text-muted-foreground">
-              Loading habits...
+              Preparing this week’s scoring system...
             </span>
           </div>
         )}
 
-        {!isLoading && !activeScoringSystem && (
+        {!isEnsuringWeek && !weekScoringSystem && (
           <p className="text-sm text-muted">
-            No active scoring system found. Please create one in the Habits
-            section.
-          </p>
-        )}
-        {!isLoading && activeScoringSystem && activeHabits.length === 0 && (
-          <p className="text-sm text-muted">
-            No habits in your active scoring system. Add some habits to get
-            started.
+            No scoring system could be assigned to this week.
           </p>
         )}
 
-        {activeHabits.length > 0 && (
+        {weekScoringSystem && (
+          <div className="mb-3 flex text-xs text-muted-foreground">
+            <span>Scoring system:</span>
+            <div className="text-foreground">
+              <Select
+                value={weekScoringSystem.id}
+                onValueChange={handleSystemChange}
+                disabled={isEnsuringWeek}
+              >
+                <SelectTrigger className="h-7 w-220px] text-xs">
+                  <SelectValue placeholder="Select scoring system" />
+                </SelectTrigger>
+                <SelectContent>
+                  {systems.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
+        {weekHabits.length > 0 && (
           <div className="space-y-3 mb-6">
-            {activeHabits.map((sh) => {
+            {weekHabits.map((sh) => {
               const hs = perHabitMap[sh.habitId];
               if (!hs) return null;
 
@@ -478,6 +571,31 @@ export default function LogPage() {
           </Button>
         )}
       </div>
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Switch scoring system for this week?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This week already has daily logs. Switching the scoring system
+              will remove the existing relation and{" "}
+              <b>delete all daily logs for this week</b>. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() =>
+                pendingSystemId && applySystemChange(pendingSystemId, true)
+              }
+            >
+              Delete logs & switch
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

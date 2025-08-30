@@ -106,45 +106,56 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { date, notes, logs, scoringSystemId } = await req.json();
+    const { date, notes, logs, weeklyLogId } = await req.json();
 
     if (!date || !Array.isArray(logs)) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
-
-    if (!scoringSystemId) {
+    if (!weeklyLogId) {
+      // Client must ensure/select a week first
       return NextResponse.json(
-        { error: "No scoring system found" },
-        { status: 400 }
+        { error: "weeklyLogId required (ensure week before posting)" },
+        { status: 409 }
       );
     }
 
     const dateString = typeof date === "string" ? date.slice(0, 10) : "";
 
-    await prisma.$transaction(async (tx) => {
-      //HELP - need to move this ensureWeeklyLog somewhere it makes more sense. Likely before this API gets called.
-      const weeklyLog = await ensureWeeklyLog(
-        dbUser.id,
-        dateString,
-        scoringSystemId
+    // Verify weeklyLog belongs to this user
+    const weeklyLog = await prisma.weeklyLog.findFirst({
+      where: { id: weeklyLogId, userId: dbUser.id },
+      select: { id: true, startDate: true },
+    });
+    if (!weeklyLog) {
+      return NextResponse.json(
+        { error: "WeeklyLog not found" },
+        { status: 404 }
       );
+    }
 
+    // Optional sanity check: ensure the daily `date` falls in the same week as `weeklyLog.startDate`
+    const weekOfDate = getStartOfWeek(dateString);
+    if (weekOfDate !== weeklyLog.startDate) {
+      return NextResponse.json(
+        { error: "Date not in this WeeklyLog’s week" },
+        { status: 400 }
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Upsert the daily log for this user+date and link to the weekly log
       const dailyLog = await tx.dailyLog.upsert({
-        where: {
-          userId_date: { userId: dbUser.id, date: dateString },
-        },
-        update: {
-          notes: notes,
-          weeklyLogId: weeklyLog.id,
-        },
+        where: { userId_date: { userId: dbUser.id, date: dateString } },
+        update: { notes, weeklyLogId: weeklyLog.id },
         create: {
           userId: dbUser.id,
           weeklyLogId: weeklyLog.id,
           date: dateString,
-          notes: notes,
+          notes,
         },
       });
 
+      // Upsert each habit log
       await Promise.all(
         logs.map((log: any) =>
           tx.habitLog.upsert({
@@ -168,6 +179,7 @@ export async function POST(req: NextRequest) {
         )
       );
 
+      // Recompute weekly score after changes
       await updateWeeklyScore(weeklyLog.id);
     });
 
