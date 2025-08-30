@@ -112,27 +112,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
 
-    let activeScoringSystemId = scoringSystemId;
-    if (!activeScoringSystemId) {
-      const activeSystem = await prisma.scoringSystem.findFirst({
-        where: { userId: dbUser.id, isActive: true },
-      });
-      if (!activeSystem) {
-        return NextResponse.json(
-          { error: "No active scoring system found" },
-          { status: 400 }
-        );
-      }
-      activeScoringSystemId = activeSystem.id;
+    if (!scoringSystemId) {
+      return NextResponse.json(
+        { error: "No scoring system found" },
+        { status: 400 }
+      );
     }
 
     const dateString = typeof date === "string" ? date.slice(0, 10) : "";
 
     await prisma.$transaction(async (tx) => {
+      //HELP - need to move this ensureWeeklyLog somewhere it makes more sense. Likely before this API gets called.
       const weeklyLog = await ensureWeeklyLog(
         dbUser.id,
         dateString,
-        activeScoringSystemId
+        scoringSystemId
       );
 
       const dailyLog = await tx.dailyLog.upsert({
@@ -141,12 +135,10 @@ export async function POST(req: NextRequest) {
         },
         update: {
           notes: notes,
-          scoringSystemId: activeScoringSystemId,
           weeklyLogId: weeklyLog.id,
         },
         create: {
           userId: dbUser.id,
-          scoringSystemId: activeScoringSystemId,
           weeklyLogId: weeklyLog.id,
           date: dateString,
           notes: notes,

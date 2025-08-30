@@ -43,20 +43,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Get the active scoring system
-    const activeScoringSystem = await prisma.scoringSystem.findFirst({
-      where: { userId: dbUser.id, isActive: true },
-    });
-
-    if (!activeScoringSystem) {
-      return NextResponse.json({ logs: [] }, { status: 200 });
-    }
-
     // Fetch all logs for the date range
     const logs = await prisma.dailyLog.findMany({
       where: {
         userId: dbUser.id,
-        scoringSystemId: activeScoringSystem.id,
         date: {
           gte: startDate,
           lte: endDate,
