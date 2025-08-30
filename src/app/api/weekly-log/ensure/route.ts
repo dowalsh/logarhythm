@@ -35,7 +35,10 @@ export async function POST(req: NextRequest) {
       include: {
         ScoringSystem: {
           include: {
-            habits: { include: { habit: true } }, // computeWeeklyScores expects habit details
+            habits: {
+              include: { habit: true },
+              orderBy: { weight: "desc" },
+            }, // computeWeeklyScores expects habit details
           },
         },
       },
